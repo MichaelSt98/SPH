@@ -1,7 +1,7 @@
 #ifndef SPH_PRESSURE_H
 #define SPH_PRESSURE_H
 
-#include "Vector3.h"
+#include "Particle.h"
 
 #include <cmath>
 
@@ -15,7 +15,7 @@ public:
 
     Pressure(prFloat k, prFloat n);
 
-    void pressure(vec3 &density, vec3 &pressure);
+    void calculatePressure(Particle &p);
 };
 
 

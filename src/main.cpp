@@ -94,6 +94,12 @@ void timeIntegration(float t, float deltaT, float tEnd, float diam, float smooth
 
         subDomain.root.repairTree();
 
+        //! NEW
+        ////subDomain.nearNeighbourList(smoothingLength);
+        //subDomain.sendParticlesSPH(smoothingLength);
+        //subDomain.forcesSPH(smoothingLength);
+        //! NEW
+
         subDomain.root.compX(deltaT);
 
         subDomain.root.compV(deltaT);
@@ -105,9 +111,6 @@ void timeIntegration(float t, float deltaT, float tEnd, float diam, float smooth
         subDomain.compPseudoParticles();
 
         subDomain.root.printTreeSummary(false);
-
-        //subDomain.nearNeighbourList(smoothingLength);
-        subDomain.sendParticlesSPH(smoothingLength);
 
     }
     Logger(DEBUG) << "t = " << t << ", FINISHED";

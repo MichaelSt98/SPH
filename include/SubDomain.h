@@ -7,6 +7,8 @@
 
 #include "Keytype.h"
 #include "Tree.h"
+#include "Density.h"
+#include "Pressure.h"
 
 #include <boost/mpi.hpp>
 #include <boost/version.hpp>
@@ -69,6 +71,7 @@ public:
 
     //void nearNeighbourList(tFloat radius);
     void sendParticlesSPH(tFloat radius);
+    void forcesSPH(tFloat radius);
     void findInteractionPartnersOutsideDomain(TreeNode &t, Particle &particle, bool &interactionPartner, int &process,
                                               tFloat radius, KeyType k=0UL, int level=0);
 

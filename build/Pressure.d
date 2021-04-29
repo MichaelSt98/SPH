@@ -1,5 +1,5 @@
-./build/Pressure.o: src/Pressure.cpp src/../include/Pressure.h include/Vector3.h \
-  /usr/local/include/boost/mpi.hpp \
+./build/Pressure.o: src/Pressure.cpp src/../include/Pressure.h include/Particle.h \
+  include/Vector3.h /usr/local/include/boost/mpi.hpp \
   /usr/local/include/boost/mpi/allocator.hpp \
   /usr/local/include/boost/mpi/config.hpp \
   /usr/local/Cellar/open-mpi/4.1.0/include/mpi.h \
@@ -639,6 +639,7 @@
   /usr/local/include/boost/mpi/timer.hpp
 src/Pressure.cpp:
 src/../include/Pressure.h:
+include/Particle.h:
 include/Vector3.h:
 /usr/local/include/boost/mpi.hpp:
 /usr/local/include/boost/mpi/allocator.hpp:

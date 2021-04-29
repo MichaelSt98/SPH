@@ -6,29 +6,39 @@
 
 Particle::Particle() {
     m = 0;
+    rho = 0;
+    p = 0;
     moved = false;
     toDelete = false;
 }
 Particle::Particle(pVec x) : x { x } {
     m = 0;
+    rho = 0;
+    p = 0;
     moved = false;
     toDelete = false;
 }
 
 Particle::Particle(pVec x, pFloat m) : x { x } {
     this->m = m;
+    rho = 0;
+    p = 0;
     moved = false;
     toDelete = false;
 }
 
 Particle::Particle(pVec x, pVec v) : x { x }, v { v }{
     m = 0;
+    rho = 0;
+    p = 0;
     moved = false;
     toDelete = false;
 }
 
 Particle::Particle(pVec x, pVec v, pFloat m) : x { x }, v { v }{
     this->m = m;
+    rho = 0;
+    p = 0;
     moved = false;
     toDelete = false;
 }

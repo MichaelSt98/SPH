@@ -258,6 +258,19 @@ void TreeNode::getParticleList(ParticleList &particleList) {
     }
 }
 
+void TreeNode::getParticleList(ParticlePointerList &particlePointerList) {
+    if (isLeaf() && !isDomainList() && !p.toDelete) {
+        particlePointerList.push_back(&p);
+    }
+    else {
+        for (int i=0; i<POWDIM; i++) {
+            if (son[i] != NULL) {
+                son[i]->getParticleList(particlePointerList);
+            }
+        }
+    }
+}
+
 void TreeNode::getParticleList(ParticleList &particleList, KeyList &keyList, KeyType k, int level) {
     for (int i=0; i<POWDIM; i++) {
         if (son[i] != NULL) {
@@ -605,32 +618,26 @@ void TreeNode::updateRange(int &n, int &p, KeyType *range, int *newDist, KeyType
     }
 }*/
 
-void TreeNode::nearNeighbourList(tFloat radius, ParticleList &localParticleList, ParticleList *interactionLists) {
-    ParticleList particleList;
-    getParticleList(particleList);
+void TreeNode::nearNeighbourList(tFloat radius, ParticlePointerList &localParticlePointerList,
+                                 ParticleList *interactionLists) {
 
-    //ParticleList localParticleList;
-
-    for (int i=0; i<particleList.size(); i++) {
-        if (!particleList[i].toDelete) {
-            localParticleList.push_back(particleList[i]);
-        }
-    }
+    getParticleList(localParticlePointerList);
+    Logger(ERROR) << "len(localParticlePointerList) = " << localParticlePointerList.size();
 
     IntList amountOfInteractionPartners;
 
-    interactionLists = new ParticleList[(int)localParticleList.size()];
+    //interactionLists = new ParticleList[(int)localParticlePointerList.size()];
 
-    for (int i=0; i<localParticleList.size(); i++) {
+    for (int i=0; i<localParticlePointerList.size(); i++) {
         ParticleList interactionPartner;
-        findInteractionPartners(localParticleList[i], interactionPartner, radius);
+        findInteractionPartners(*localParticlePointerList[i], interactionPartner, radius);
         interactionLists[i] = interactionPartner;
         amountOfInteractionPartners.push_back((int)interactionPartner.size());
     }
 
-    for (int i=0; i<amountOfInteractionPartners.size(); i++) {
+    /*for (int i=0; i<amountOfInteractionPartners.size(); i++) {
         Logger(INFO) << "#interaction partners[" << i << "]: " << amountOfInteractionPartners[i];
-    }
+    }*/
 }
 
 /*void TreeNode::findInteractionPartners(Particle &particle, ParticleList &particleList, tFloat radius) {

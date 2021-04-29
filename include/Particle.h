@@ -13,12 +13,15 @@ class Particle;
 
 typedef Vector3<pFloat> pVec;
 typedef std::vector<Particle> ParticleList;
+typedef std::vector<Particle *> ParticlePointerList;
 
 class Particle {
 
 public:
 
     pFloat m;
+    pFloat rho;
+    pFloat p;
     Vector3<pFloat> x;
     Vector3<pFloat> v;
     Vector3<pFloat> F;
@@ -38,6 +41,8 @@ public:
     template<class Archive>
     void serialize(Archive &ar, const unsigned int version) {
         ar & m;
+        ar & rho;
+        ar & p;
         ar & x;
         ar & v;
         ar & F;

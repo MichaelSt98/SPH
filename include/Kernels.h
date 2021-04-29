@@ -19,7 +19,7 @@ public:
 
     kernelType usedKernel;
 
-    Kernels(kernelType useKernel=gaussianKernel);
+    Kernels(kernelType useKernel);
 
     kFloat kernel(vec3 &position, kFloat h);
     void gradKernel(vec3 &position, kFloat h, vec3 &gradient);

@@ -638,7 +638,8 @@
   /usr/local/include/boost/mpi/detail/broadcast_sc.hpp \
   /usr/local/include/boost/mpi/detail/communicator_sc.hpp \
   /usr/local/include/boost/mpi/timer.hpp include/Tree.h \
-  include/Particle.h include/Vector3.h include/Domain.h
+  include/Particle.h include/Vector3.h include/Domain.h \
+  include/Density.h include/Kernels.h include/Pressure.h
 src/SubDomain.cpp:
 src/../include/SubDomain.h:
 include/Keytype.h:
@@ -1289,3 +1290,6 @@ include/Tree.h:
 include/Particle.h:
 include/Vector3.h:
 include/Domain.h:
+include/Density.h:
+include/Kernels.h:
+include/Pressure.h:

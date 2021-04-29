@@ -7,11 +7,13 @@ Kernels::Kernels(kernelType useKernel) {
 kFloat Kernels::kernel(vec3 &position, kFloat h) {
     kFloat w = -1;
     switch(usedKernel) {
-        case 0: {
+        case gaussianKernel: {
             w = gaussian(position, h);
+            break;
         }
         default: {
-            Logger(ERROR) << "Not implemented!";
+            Logger(ERROR) << "Kernel not implemented!";
+            break;
         }
     }
     return w;
@@ -19,11 +21,13 @@ kFloat Kernels::kernel(vec3 &position, kFloat h) {
 
 void Kernels::gradKernel(vec3 &position, kFloat h, vec3 &gradient) {
     switch(usedKernel) {
-        case 0: {
+        case gaussianKernel: {
             gradGaussian(position, h, gradient);
+            break;
         }
         default: {
-            Logger(ERROR) << "Not implemented!";
+            Logger(ERROR) << "gradKernel not implemented!";
+            break;
         }
     }
 }
@@ -36,7 +40,7 @@ kFloat Kernels::gaussian(vec3 &position, kFloat h) {
 
 void Kernels::gradGaussian(vec3 &position, kFloat h, vec3 &gradient) {
     kFloat r = sqrt(position * position);
-    kFloat n = -2 * exp( -(r*r) / (h*h)) / pow(h, 5) / sqrt(pow(PI, 3));
+    kFloat n = -2 * exp( -(r*r) / (h*h)) / pow(h, 5) / pow(PI, 3/2);
 
     gradient = n * position;
 }

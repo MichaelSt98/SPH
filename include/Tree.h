@@ -90,6 +90,7 @@ public:
     void getTreeList(ParticleList &particleList);
     void getTreeList(NodeList &nodeList);
     void getParticleList(ParticleList &particleList);
+    void getParticleList(ParticlePointerList &particlePointerList);
     void getParticleList(ParticleList &particleList, KeyList &keyList, KeyType k=0UL, int level=0);
     int getParticleCount();
     void getLowestDomainList(ParticleList &particleList);
@@ -99,7 +100,7 @@ public:
 
     void updateRange(int &n, int &p, KeyType *range, int *newDist, KeyType k=0UL, int level=0);
 
-    void nearNeighbourList(tFloat radius, ParticleList &localParticleList, ParticleList *interactionLists);
+    void nearNeighbourList(tFloat radius, ParticlePointerList &localParticlePointerList, ParticleList *interactionLists);
     void findInteractionPartners(Particle &particle, ParticleList &particleList, tFloat radius);
 };
 

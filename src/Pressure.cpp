@@ -5,6 +5,6 @@ Pressure::Pressure(prFloat k, prFloat n) {
     this->n = n;
 }
 
-void Pressure::pressure(vec3 &density, vec3 &pressure) {
-    pressure = k * vec3{ pow(density.x, 1+1/n), pow(density.y, 1+1/n), pow(density.z, 1+1/n) };
+void Pressure::calculatePressure(Particle &p) {
+    p.p = k * pow(p.rho, 1+1/n);
 }

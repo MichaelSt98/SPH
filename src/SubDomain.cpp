@@ -642,11 +642,148 @@ void SubDomain::sendParticlesSPH(tFloat radius) {
         }
     }
     //Logger(ERROR) << "Particles with missing information: #" << p2send.size() << " (out of " << particleList.size() << ")";
-    for (int proc=0; proc<numProcesses; proc++) {
+    /*for (int proc=0; proc<numProcesses; proc++) {
         for (int i = 0; i < p2send[proc].size(); i++) {
             Logger(ERROR) << "p2send[" << i << "] to process: " << proc << " = " << p2send[proc][i].x;
         }
+    }*/
+
+    Particle ** pArray = new Particle*[numProcesses];
+
+    int *pLengthSend;
+    pLengthSend = new int[numProcesses];
+    pLengthSend[rank] = -1;
+
+    int *pLengthReceive;
+    pLengthReceive = new int[numProcesses];
+    pLengthReceive[rank] = -1;
+
+    for (int proc=0; proc<numProcesses; proc++) {
+        if (proc != rank) {
+            pLengthSend[proc] = (int)p2send[proc].size();
+            pArray[proc] = new Particle[pLengthSend[proc]];
+            pArray[proc] = &p2send[proc][0];
+        }
     }
+
+    std::vector<boost::mpi::request> reqMessageLengths;
+    std::vector<boost::mpi::status> statMessageLengths;
+
+    for (int proc=0; proc<numProcesses; proc++) {
+        if (proc != rank) {
+            reqMessageLengths.push_back(comm.isend(proc, 17, &pLengthSend[proc], 1));
+            statMessageLengths.push_back(comm.recv(proc, 17, &pLengthReceive[proc], 1));
+        }
+    }
+
+    boost::mpi::wait_all(reqMessageLengths.begin(), reqMessageLengths.end());
+
+    int totalReceiveLength = 0;
+    for (int proc=0; proc<numProcesses; proc++) {
+        if (proc != rank) {
+            totalReceiveLength += pLengthReceive[proc];
+        }
+    }
+
+    pArray[rank] = new Particle[totalReceiveLength];
+
+    std::vector<boost::mpi::request> reqParticles;
+    std::vector<boost::mpi::status> statParticles;
+
+    int offset = 0;
+    for (int proc=0; proc<numProcesses; proc++) {
+        if (proc != rank) {
+            reqParticles.push_back(comm.isend(proc, 17, pArray[proc], pLengthSend[proc]));
+            statParticles.push_back(comm.recv(proc, 17, pArray[rank] + offset, pLengthReceive[proc]));
+            offset += pLengthReceive[proc];
+        }
+    }
+
+    boost::mpi::wait_all(reqParticles.begin(), reqParticles.end());
+
+    Logger(INFO) << "sendParticlesSPH(): totalReceiveLength = " << totalReceiveLength;
+
+    for (int i=0; i<totalReceiveLength; i++) {
+        pArray[rank][i].toDelete = true;
+        root.insert(pArray[rank][i]);
+    }
+
+    ParticleList *interactionLists;
+    interactionLists = new ParticleList[particleList.size()];
+    ParticlePointerList localParticlePointerList;
+
+    root.nearNeighbourList(radius, localParticlePointerList, interactionLists);
+
+    //Logger(ERROR) << "len(localParticlePointerList) = " << localParticlePointerList.size() << "   len(interactionLists) = " << interactionLists->size();
+
+    /*for (int i=0; i<localParticlePointerList.size(); i++) {
+        Logger(INFO) << "localParticlePointerList[" << i << "]: " << localParticlePointerList[i]->x;
+    }*/
+
+    for (int i=0; i<localParticlePointerList.size(); i++) {
+        Logger(INFO) << "len(interactionLists[" << i << "] = " << interactionLists[i].size();
+    }
+
+    Pressure pressureHandler(0.1, 1);
+
+    for (int i=0; i<localParticlePointerList.size(); i++) {
+        Density::calculateDensity(*localParticlePointerList[i], interactionLists[i], radius);
+        pressureHandler.calculatePressure(*localParticlePointerList[i]);
+        /*for (int j=0; j<interactionLists[i].size(); j++) {
+            if (localParticlePointerList[i]->x != interactionLists[i][j].x) {
+                localParticlePointerList[i]->F -= pow(localParticlePointerList[i]->m, 2) *
+                                                  (((localParticlePointerList[i]->p) /
+                                                    (pow(localParticlePointerList[i]->rho, 2))) +
+                                                   ((interactionLists[i][j].p) / (pow(interactionLists[i][j].rho, 2))));
+            }
+        }*/
+    }
+
+    /*for (int i=0; i<localParticlePointerList.size(); i++) {
+        Logger(INFO) << "Particle[" << i << "].rho = " << localParticlePointerList[i]->rho;
+        Logger(INFO) << "Particle[" << i << "].p = " << localParticlePointerList[i]->p;
+        Logger(INFO) << "Particle[" << i << "].F = " << localParticlePointerList[i]->F;
+    }*/
+
+    root.repairTree();
+
+    delete [] p2send;
+    delete [] pLengthReceive;
+    delete [] pLengthSend;
+    //for (int proc=0; proc<numProcesses; proc++) {
+    //delete [] pArray[proc];
+    //}
+    delete [] pArray;
+    delete [] interactionLists;
+}
+
+void SubDomain::forcesSPH(tFloat radius) {
+    ParticleList particleList;
+    root.getParticleList(particleList);
+
+    bool interactionPartner;
+    int process;
+
+    ParticleList *p2send;
+    p2send = new ParticleList[numProcesses];
+
+    //ParticleList p2send;
+    //IntList send2process;
+    for (int i=0; i<particleList.size(); i++) {
+        interactionPartner = false;
+        process = -1;
+        findInteractionPartnersOutsideDomain(root, particleList[i], interactionPartner, process, radius);
+        if (interactionPartner) {
+            p2send[process].push_back(particleList[i]);
+            //send2process.push_back(process);
+        }
+    }
+    //Logger(ERROR) << "Particles with missing information: #" << p2send.size() << " (out of " << particleList.size() << ")";
+    /*for (int proc=0; proc<numProcesses; proc++) {
+        for (int i = 0; i < p2send[proc].size(); i++) {
+            Logger(ERROR) << "p2send[" << i << "] to process: " << proc << " = " << p2send[proc][i].x;
+        }
+    }*/
 
     Particle ** pArray = new Particle*[numProcesses];
 
@@ -709,9 +846,45 @@ void SubDomain::sendParticlesSPH(tFloat radius) {
     }
 
     ParticleList *interactionLists;
-    ParticleList localParticleList;
+    interactionLists = new ParticleList[particleList.size()];
+    ParticlePointerList localParticlePointerList;
 
-    root.nearNeighbourList(radius, localParticleList, interactionLists);
+    root.nearNeighbourList(radius, localParticlePointerList, interactionLists);
+
+    //Logger(ERROR) << "len(localParticlePointerList) = " << localParticlePointerList.size() << "   len(interactionLists) = " << interactionLists->size();
+
+    /*for (int i=0; i<localParticlePointerList.size(); i++) {
+        Logger(INFO) << "localParticlePointerList[" << i << "]: " << localParticlePointerList[i]->x;
+    }*/
+
+    for (int i=0; i<localParticlePointerList.size(); i++) {
+        Logger(INFO) << "len(interactionLists[" << i << "] = " << interactionLists[i].size();
+    }
+
+    Pressure pressureHandler(0.5, 1);
+    Kernels kernels(Kernels::gaussianKernel);
+    for (int i=0; i<localParticlePointerList.size(); i++) {
+        //Density::calculateDensity(*localParticlePointerList[i], interactionLists[i], radius);
+        //pressureHandler.calculatePressure(*localParticlePointerList[i]);
+        for (int j=0; j<interactionLists[i].size(); j++) {
+            Vector3<float> r = localParticlePointerList[i]->x - interactionLists[i][j].x;
+            Vector3<float> gradient;
+            kernels.gradKernel(r, radius, gradient);
+            if (localParticlePointerList[i]->x != interactionLists[i][j].x) {
+                localParticlePointerList[i]->F -= pow(localParticlePointerList[i]->m, 2) *
+                                                  (((localParticlePointerList[i]->p) /
+                                                    (pow(localParticlePointerList[i]->rho, 2))) +
+                                                   ((interactionLists[i][j].p) / (pow(interactionLists[i][j].rho, 2)))) *
+                                                   gradient;
+            }
+        }
+    }
+
+    /*for (int i=0; i<localParticlePointerList.size(); i++) {
+        Logger(INFO) << "Particle[" << i << "].rho = " << localParticlePointerList[i]->rho;
+        Logger(INFO) << "Particle[" << i << "].p = " << localParticlePointerList[i]->p;
+        Logger(INFO) << "Particle[" << i << "].F = " << localParticlePointerList[i]->F;
+    }*/
 
     root.repairTree();
 
@@ -722,7 +895,7 @@ void SubDomain::sendParticlesSPH(tFloat radius) {
     //delete [] pArray[proc];
     //}
     delete [] pArray;
-    //delete [] interactionLists;
+    delete [] interactionLists;
 }
 
 void SubDomain::findInteractionPartnersOutsideDomain(TreeNode &t, Particle &particle,

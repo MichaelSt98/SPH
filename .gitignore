@@ -1,0 +1,14 @@
+**/images/
+
+**/build/
+**/bin/
+**/output/
+
+**/.idea/
+
+**/log/
+
+*.mp4
+*.csv
+# ignore MPI-debug lldb pipe
+*.lldb

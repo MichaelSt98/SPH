@@ -1024,7 +1024,8 @@
   /usr/local/include/boost/mpi/timer.hpp src/../include/Tree.h \
   include/Particle.h include/Domain.h include/Logger.h include/Keytype.h \
   include/Constants.h src/../include/Domain.h src/../include/SubDomain.h \
-  include/Tree.h src/../include/Renderer.h include/ConfigParser.h \
+  include/Tree.h include/Density.h include/Kernels.h include/Pressure.h \
+  src/../include/Renderer.h include/ConfigParser.h \
   src/../include/ParticleDistribution.h src/../include/Kernels.h \
   /usr/local/include/boost/exception/all.hpp \
   /usr/local/include/boost/exception/diagnostic_information.hpp \
@@ -2093,6 +2094,9 @@ include/Constants.h:
 src/../include/Domain.h:
 src/../include/SubDomain.h:
 include/Tree.h:
+include/Density.h:
+include/Kernels.h:
+include/Pressure.h:
 src/../include/Renderer.h:
 include/ConfigParser.h:
 src/../include/ParticleDistribution.h:
