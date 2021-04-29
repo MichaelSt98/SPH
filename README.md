@@ -34,19 +34,20 @@ Example: **SPH** (SPH + self-gravity)
 * *config/config.info* 
 * *config/rendering.info*
 
-| setting | example value | description |
-|----|----|----|----|
-| numParticles | 200 | number of particles (per process) |
-| systemSize    |5. | system size in every direction|
-| timeStep | .15 | integration time step |
-| timeEnd | 100.0 | integrate until reached|
-| initMass | 1e-4 | (initialization value for) mass of particles |
-| initVel | .125 | (initialization value for) velocity of particles|
-| smoothingLength | 0.5 | smoothing length of particles|
-| outputRank  | 0 | rank to output in the shell (`-1` to output all ranks)|
-| loadBalancing | true | load balancing y/n |
-| distributionType | 0 | which initial distribution to use |
-| curveType | 0 | which space-filling curve to use (Lebesque or Hilbert) |
+
+| setting             | example value | description                                             |
+|---------------------|---------------|---------------------------------------------------------|
+| numParticles        | 200           | number of particles (per process)                       |
+| systemSize          | 5.            | system size in every direction                          |
+| timeStep            | .15           | integration time step                                   |
+| timeEnd             | 100.0         | integrate until reached                                 |
+| initMass            | 1e-4          | (initialization value for) mass of particles            |
+| initVel             | .125          | (initialization value for) velocity of particles        |
+| smoothingLength     | 0.5           | smoothing length of particles                           |
+| outputRank          | 0             | rank to output in the shell (`-1` to output all ranks)  |
+| loadBalancing       | true          | load balancing y/n                                      |
+| distributionType    | 0             | which initial distribution to use                       |
+| curveType           | 0             | which space-filling curve to use (Lebesque or Hilbert)  |
 
 
 ### Running
