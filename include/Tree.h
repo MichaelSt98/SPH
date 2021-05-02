@@ -17,8 +17,6 @@
 #include <iomanip>
 #include <cmath>
 
-#define KEY_MAX ULONG_MAX
-
 class TreeNode;
 struct Node;
 

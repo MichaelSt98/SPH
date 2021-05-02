@@ -17,6 +17,9 @@
 #include <fstream>
 #include <string>
 
+//const std::string KEY_MAX_STRING;
+//const KeyType KEY_MAX;
+
 typedef std::map<KeyType, Particle> ParticleMap;
 
 class SubDomain {

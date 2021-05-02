@@ -24,8 +24,8 @@ OBJEXT      := o
 CXXFLAGS    += -std=c++11 -g -O0#-Wno-conversion
 LFLAGS      := -std=c++11 -lboost_filesystem -lboost_system#-O3
 LIB         := -Xpreprocessor -fopenmp -lboost_mpi -lboost_serialization #-lomp
-INC         := -I$(INCDIR) #-I/usr/local/Headeronly/
-INCDEP      := -I$(INCDIR) #-I/usr/local/Headeronly/
+INC         := -I$(INCDIR) -I/usr/local/Headeronly/
+INCDEP      := -I$(INCDIR) -I/usr/local/Headeronly/
 
 #Source and Object files
 SOURCES     := $(shell find $(SRCDIR) -type f -name "*.$(SRCEXT)")

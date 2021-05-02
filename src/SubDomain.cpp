@@ -78,9 +78,9 @@ void SubDomain::createRanges() {
 
     std::sort(globalKeyList.begin(), globalKeyList.end());
 
-    /*for (int i=0; i<globalKeyList.size(); i++) {
+    for (int i=0; i<globalKeyList.size(); i++) {
         Logger(ERROR) << "globalKeyList[" << i << "] = " << globalKeyList[i];
-    }*/
+    }
 
     int N = globalKeyList.size();
     const int ppr = (N % numProcesses != 0) ? N/numProcesses+1 : N/numProcesses;
@@ -91,7 +91,7 @@ void SubDomain::createRanges() {
             range[i] = globalKeyList[i * ppr];
             Logger(ERROR) << "range[" << i << "] = " << range[i];
         }
-        range[numProcesses] = KEY_MAX;
+        range[numProcesses] = KeyType{ KeyType::KEY_MAX };
     }
 
     boost::mpi::broadcast(comm, range, numProcesses+1, 0);
@@ -128,7 +128,7 @@ void SubDomain::newLoadDistribution() {
     updateRange(n, p, newDist);
 
     range[0] = 0UL;
-    range[numProcesses] = KEY_MAX;
+    range[numProcesses] = KeyType{ KeyType::KEY_MAX };
 
     KeyType sendRange[numProcesses+1];
     std::copy(range, range+numProcesses+1, sendRange);
@@ -162,13 +162,14 @@ void SubDomain::updateRange(int &n, int &p, int *newDist) {
 void SubDomain::updateRangeHilbert(TreeNode &t, int &n, int &p, int *newDist, KeyType k, int level) {
     std::map<KeyType, int> keyMap;
     for (int i=0; i<POWDIM; i++) {
-        KeyType hilbert = KeyType::Lebesgue2Hilbert(k | ((KeyType)i << (DIM*(k.maxLevel-level-1))), level+1);
+        KeyType hilbert = KeyType::Lebesgue2Hilbert(k | (KeyType{ i } << (DIM*(k.maxLevel-level-1))),
+                                                    level+1);
         keyMap[hilbert] = i;
     }
     for (std::map<KeyType, int>::iterator kit=keyMap.begin(); kit!=keyMap.end(); kit++) {
         if (t.son[kit->second] != NULL) {
             updateRangeHilbert(*t.son[kit->second], n, p, newDist,
-                               k | ((KeyType) kit->second << (DIM * (k.maxLevel - level - 1))), level + 1);
+                               k | KeyType{ kit->second << (DIM * (k.maxLevel - level - 1)) }, level + 1);
         }
     }
 
@@ -186,16 +187,18 @@ void SubDomain::updateRangeHilbert(TreeNode &t, int &n, int &p, int *newDist, Ke
 void SubDomain::createDomainList(TreeNode &t, int level, KeyType k) {
     t.node = TreeNode::domainList;
 
+    //Logger(INFO) << "KeyType k = " << k;
+
     int proc1;
     int proc2;
     if (curve == hilbert) {
         KeyType hilbert = KeyType::Lebesgue2Hilbert(k, level);
         proc1 = key2proc(hilbert, level, true);
-        proc2 = key2proc(hilbert | (KEY_MAX >> (DIM * level + 1)), level, true);
+        proc2 = key2proc(hilbert | (KeyType{ KeyType::KEY_MAX } >> (DIM * level + 1)), level, true);
     }
     else {
         proc1 = key2proc(k, level);
-        proc2 = key2proc(k | ~(~0L << DIM * (k.maxLevel - level)), level);
+        proc2 = key2proc(k | ~(~KeyType(0L) << DIM * (k.maxLevel - level)), level);
     }
     if (proc1 != proc2) {
         for (int i=0; i<POWDIM; i++) {
@@ -208,7 +211,7 @@ void SubDomain::createDomainList(TreeNode &t, int level, KeyType k) {
                 continue;
             }
             createDomainList(*t.son[i], level + 1,
-                             KeyType(k | ((KeyType) i << (DIM * (k.maxLevel - level - 1)))));
+                             k | (KeyType{ i } << (DIM*(k.maxLevel-level-1))));
         }
     }
 }
@@ -302,7 +305,7 @@ void SubDomain::buildSendList(TreeNode &t, ParticleList *pList, KeyType k, int l
     }
     for (int i=0; i<POWDIM; i++) {
         if (t.son[i] != NULL) {
-            buildSendList(*t.son[i], pList, KeyType(k | ((keyInteger) i << (DIM * (k.maxLevel - level - 1)))),
+            buildSendList(*t.son[i], pList, k | (KeyType{ i } << (DIM*(k.maxLevel-level-1))),
                           level + 1);
         }
     }
@@ -328,7 +331,7 @@ void SubDomain::symbolicForce(TreeNode &td, TreeNode &t, float diam, ParticleMap
         for (int i=0; i<POWDIM; i++) {
             if (t.son[i] != NULL) {
                 symbolicForce(td, *t.son[i], 0.5 * diam, pMap,
-                              KeyType(k | ((keyInteger) i << (DIM * (k.maxLevel - level - 1)))),
+                              k | (KeyType{ i } << (DIM*(k.maxLevel-level-1))),
                               level + 1);
             }
         }
@@ -371,7 +374,7 @@ void SubDomain::compPseudoParticles() {
 void SubDomain::compF(TreeNode &t, float diam, KeyType k, int level) {
     for (int i=0; i<POWDIM; i++) {
         if (t.son[i] != NULL) {
-            compF(*t.son[i], diam, KeyType(k | ((keyInteger) i << (DIM * (k.maxLevel - level - 1)))),
+            compF(*t.son[i], diam, k | (KeyType{ i } << (DIM*(k.maxLevel-level-1))),
                   level + 1);
         }
         if (t.isLeaf() && key2proc(k, level) == rank && !t.isDomainList()) {
@@ -466,7 +469,7 @@ void SubDomain::compFParallel(float diam) {
 void SubDomain::compTheta(TreeNode &t, ParticleMap *pMap, float diam, KeyType k, int level) {
     for (int i=0; i<POWDIM; i++) {
         if (t.son[i] != NULL) {
-            compTheta(*t.son[i], pMap, diam, KeyType(k | ((keyInteger) i << (DIM * (k.maxLevel - level - 1)))),
+            compTheta(*t.son[i], pMap, diam, k | KeyType{ i << (DIM * (k.maxLevel - level - 1)) },
                       level + 1);
         }
     }

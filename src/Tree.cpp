@@ -279,7 +279,7 @@ void TreeNode::getParticleList(ParticleList &particleList, KeyList &keyList, Key
                 keyList.push_back((k | KeyType((keyInteger) i << (DIM * (k.maxLevel - level - 1)))));
             } else {
                 son[i]->getParticleList(particleList, keyList,
-                                        (k | KeyType((keyInteger) i << (DIM * (k.maxLevel - level - 1)))),
+                                        k | (KeyType{ i } << (DIM*(k.maxLevel-level-1))),
                                         level + 1);
             }
         }
@@ -559,7 +559,7 @@ void TreeNode::getParticleKeys(KeyList &keyList, KeyType k, int level) {
             if (son[i]->isLeaf() && !son[i]->isDomainList()) {
                 keyList.push_back((k | KeyType((keyInteger) i << (DIM * (k.maxLevel - level - 1)))));
             } else {
-                son[i]->getParticleKeys(keyList, (k | KeyType((keyInteger) i << (DIM * (k.maxLevel - level - 1)))),
+                son[i]->getParticleKeys(keyList, k | (KeyType{ i } << (DIM*(k.maxLevel-level-1))),
                                 level + 1);
             }
         }
@@ -573,7 +573,8 @@ void TreeNode::getParticleKeys(KeyList &keyList, IntList &levelList, KeyType k, 
                 keyList.push_back((k | KeyType((keyInteger) i << (DIM * (k.maxLevel - level - 1)))));
                 levelList.push_back(level + 1);
             } else {
-                son[i]->getParticleKeys(keyList, levelList, (k | KeyType((keyInteger) i << (DIM * (k.maxLevel - level - 1)))),
+                son[i]->getParticleKeys(keyList, levelList,
+                                        k | (KeyType{ i } << (DIM*(k.maxLevel-level-1))),
                                         level + 1);
             }
         }
@@ -583,7 +584,8 @@ void TreeNode::getParticleKeys(KeyList &keyList, IntList &levelList, KeyType k, 
 void TreeNode::updateRange(int &n, int &p, KeyType *range, int *newDist, KeyType k, int level) {
     for (int i=0; i<POWDIM; i++) {
         if (son[i] != NULL) {
-            son[i]->updateRange(n, p, range, newDist, (k | KeyType((keyInteger) i << (DIM * (k.maxLevel - level - 1)))),
+            son[i]->updateRange(n, p, range, newDist,
+                                k | (KeyType{ i } << (DIM*(k.maxLevel-level-1))),
                                 level + 1);
         }
     }

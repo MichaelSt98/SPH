@@ -3,7 +3,7 @@
 //#include "../include/Keytype.h"
 #include "../include/ConfigParser.h"
 #include "../include/Particle.h"
-#include "../include/Tree.h"
+//#include "../include/Tree.h"
 #include "../include/Domain.h"
 #include "../include/SubDomain.h"
 #include "../include/Renderer.h"
@@ -15,8 +15,6 @@
 #include <boost/mpi.hpp>
 #include <boost/exception/all.hpp>
 #include <cxxopts/cxxopts.hpp>
-
-#define KEY_MAX ULONG_MAX
 
 structlog LOGCFG = {};
 
@@ -165,6 +163,23 @@ int main(int argc, char** argv) {
     LOGCFG.myrank = subDomainHandler.rank;
     LOGCFG.outputRank = confP.getVal<int>("outputRank");
 
+    KeyType k1 {20};
+    KeyType k2 {40};
+    KeyType k3 {7};
+
+    Logger(INFO) << "k1 = " << k1.toIndex();
+    Logger(INFO) << "k2 = " << k2.toIndex();
+    Logger(INFO) << "k1 & k2 = " << (k1 & k2).toIndex();
+    Logger(INFO) << "k1 | k2 = " << (k1 | k2).toIndex();
+    Logger(INFO) << "k1 << 2 = " << (k1 << 2).toIndex();
+    Logger(INFO) << "k1.maxLevel = " << k1.maxLevel;
+    Logger(INFO) << "k2.maxLevel = " << k2.maxLevel;
+    Logger(INFO) << "k3 = " << KeyType{k3};
+    //Logger(INFO) << "k3 << (DIM * (k3.maxLevel - 1)) = " << (k3 << (DIM * (k3.maxLevel - 1)));
+    //Logger(INFO) << "KEY_MAX = " << KeyType::KEY_MAX;
+    //Logger(INFO) << "KEY_MAX = " << KeyType{ KeyType::KEY_MAX };
+    //Logger(INFO) << "KEY_MAX.maxLevel = " << KeyType{ KeyType::KEY_MAX }.maxLevel;
+
     char *image;
     double *hdImage;
     int width = confP.getVal<int>("width");
@@ -179,7 +194,6 @@ int main(int argc, char** argv) {
 
     int numParticles = confP.getVal<int>("numParticles");
 
-    /** create ranges */
     Particle rootParticle {{0, 0, 0} };
     TreeNode helperTree { rootParticle , domain };
     subDomainHandler.root = helperTree;
@@ -196,8 +210,6 @@ int main(int argc, char** argv) {
     }
 
     subDomainHandler.createRanges();
-    /** END: create ranges */
-
 
     TreeNode root { domain };
     subDomainHandler.root = root;
