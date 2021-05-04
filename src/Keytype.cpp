@@ -1,12 +1,12 @@
 #include "../include/Keytype.h"
 
 KeyType::KeyType() {
-    key = keyInteger { M }; //(keyInteger)0;
+    key = keyInteger { M };
     maxLevel = getMaxLevel();
 }
 
 KeyType::KeyType(keyInteger key_) : KeyType() {
-    key = key_; //keyInteger { M, (unsigned long)key_ }; //key_;
+    key = key_;
     key.resize(M);
 }
 
@@ -15,7 +15,6 @@ KeyType::KeyType(const KeyType &keyType) : KeyType() {
 }
 
 KeyType::KeyType(const std::string &s) {
-    //key = boost::dynamic_bitset<unsigned char>(s);
     key = keyInteger(s);
     maxLevel = getMaxLevel();
 }
@@ -26,10 +25,9 @@ int KeyType::getMaxLevel() {
 }
 
 int KeyType::toIndex() {
-    return key.to_ulong(); //(keyInteger)key; //key.to_ulong();
+    return key.to_ulong();
 }
 
-//const KeyType KeyType::KEY_MAX = KeyType{ std::string{ M, '1' } };
 const std::string KeyType::KEY_MAX_STRING = std::string(M, '1');
 const KeyType KeyType::KEY_MAX = KeyType{ KEY_MAX_STRING };
 
@@ -48,7 +46,6 @@ KeyType KeyType::Lebesgue2Hilbert(KeyType lebesgue, int level) {
 }
 
 std::ostream &operator<<(std::ostream &os, const KeyType &key2print) {
-    //Logger(ERROR) << "maxLevel: " << key2print.maxLevel;
     int level[key2print.maxLevel];
     for (int i=0; i<key2print.maxLevel; i++) {
         level[i] = (key2print.key >> (key2print.maxLevel*3 - 3*(i+1)) & (int)7).toIndex();//.to_ulong();
@@ -81,7 +78,6 @@ KeyType operator>>(KeyType key2Shift, KeyType n) {
 }
 
 KeyType operator|(KeyType lhsKey, KeyType rhsKey) {
-    //Logger(INFO) << "len(lhsKey): " << lhsKey.key.size() << "   len(rhsKey): " << rhsKey.key.size();
     return KeyType(lhsKey.key | rhsKey.key);
 }
 
@@ -90,7 +86,7 @@ KeyType operator&(KeyType lhsKey, KeyType rhsKey) {
 }
 
 KeyType operator+(KeyType lhsKey, KeyType rhsKey) {
-    return lhsKey | rhsKey; //KeyType(lhsKey.key + rhsKey.key);
+    return lhsKey | rhsKey;
 }
 
 KeyType& KeyType::operator+=(const KeyType& rhsKey) {
