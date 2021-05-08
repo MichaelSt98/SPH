@@ -1,51 +1,68 @@
 #Compiler/Linker
-CXX         := mpic++ #g++
+CXX            := g++
+NVCC           := /usr/local/cuda-10.1/bin/nvcc #nvcc
 
 #Target binary
-TARGET      := runner
+TARGET         := runner
 
 #Directories
-SRCDIR      := ./src
-INCDIR      := ./include
-BUILDDIR    := ./build
-TARGETDIR   := ./bin
-RESDIR      := ./resources
-IDEASDIR    := ./ideas
-TESTDIR     := ./test
-DOCDIR      := ./doc
-DOCUMENTSDIR:= ./documents
-IMAGESDIR := ./images
+SRCDIR         := ./src
+INCDIR         := ./include
+BUILDDIR       := ./build
+TARGETDIR      := ./bin
+RESDIR         := ./resources
+IDEASDIR       := ./ideas
+TESTDIR        := ./test
+DOCDIR         := ./doc
+DOCUMENTSDIR   := ./documents
+CUDADIR        := /usr/local/cuda-10.1
 
-SRCEXT      := cpp
-DEPEXT      := d
-OBJEXT      := o
+SRCEXT         := cpp
+CUDASRCEXT     := cu
+DEPEXT         := d
+OBJEXT         := o
 
 #Flags, Libraries and Includes
-CXXFLAGS    += -std=c++11 -g -O0#-Wno-conversion
-LFLAGS      := -std=c++11 -lboost_filesystem -lboost_system#-O3
-LIB         := -Xpreprocessor -fopenmp -lboost_mpi -lboost_serialization #-lomp
-INC         := -I$(INCDIR) -I/usr/local/Headeronly/
-INCDEP      := -I$(INCDIR) -I/usr/local/Headeronly/
+CXXFLAGS       += -std=c++11 -O3 -w
+NVFLAGS        := -x cu -c -dc -w -Xcompiler "-pthread" -Wno-deprecated-gpu-targets -O3
+LFLAGS         += -g -lm -L$(CUDADIR)/lib64 -lcudart -lpthread -lconfig
+GPU_ARCH       := -arch=sm_52
+CUDALFLAGS     := -dlink
+CUDALINKOBJ    := cuLink.o #needed?
+LIB            :=
+INC            := -I$(INCDIR) -I$(CUDADIR)/include #-I/usr/local/include
+INCDEP         := -I$(INCDIR)
 
 #Source and Object files
-SOURCES     := $(shell find $(SRCDIR) -type f -name "*.$(SRCEXT)")
-OBJECTS     := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.$(OBJEXT)))
+SOURCES        := $(shell find $(SRCDIR) -type f -name "*.$(SRCEXT)")
+CUDA_SOURCES   := $(shell find $(SRCDIR) -type f -name "*.$(CUDASRCEXT)")
+OBJECTS        := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.$(OBJEXT)))
+CUDA_OBJECTS   := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(CUDA_SOURCES:.$(CUDASRCEXT)=.$(OBJEXT)))
 
 #Documentation (Doxygen)
-DOXY        := /usr/local/Cellar/doxygen/1.8.20/bin/doxygen
-DOXYFILE    := $(DOCDIR)/Doxyfile
+DOXY           := /usr/local/Cellar/doxygen/1.8.20/bin/doxygen
+DOXYFILE       := $(DOCDIR)/Doxyfile
 
 #default make (all)
-all: tester ideas $(TARGET)
+all:  tester ideas $(TARGET)
+
+debug: CXXFLAGS += -g
+debug: NVFLAGS  += -g -G
+debug: tester ideas $(TARGET)
 
 #make regarding source files
-sources: $(TARGET)
+sources: resources $(TARGET)
 
 #remake
 remake: cleaner all
 
+#copy Resources from Resources Directory to Target Directory
+resources: directories
+	@cp -r $(RESDIR)/ $(TARGETDIR)/
+
 #make directories
-directories: $(IMAGESDIR)
+directories:
+	@mkdir -p $(RESDIR)
 	@mkdir -p $(TARGETDIR)
 	@mkdir -p $(BUILDDIR)
 
@@ -57,33 +74,30 @@ clean:
 cleaner: clean
 	@$(RM) -rf $(TARGETDIR)
 
-#creating a new video of the particle N-body simulation
-movie: $(TARGET) | $(IMAGESDIR)
-	@echo "Creating video ..."
-	@./utilities/createMP4"
-
-$(IMAGESDIR):
-	@mkdir -p $@
-
 #Pull in dependency info for *existing* .o files
 -include $(OBJECTS:.$(OBJEXT)=.$(DEPEXT)) #$(INCDIR)/matplotlibcpp.h
 
 #link
-$(TARGET): $(OBJECTS)
+$(TARGET): $(OBJECTS) $(CUDA_OBJECTS)
 	@echo "Linking ..."
-	@$(CXX) $(LFLAGS) $(INC) -o $(TARGETDIR)/$(TARGET) $^ $(LIB)
+	@$(NVCC) $(GPU_ARCH) $(LFLAGS) $(INC) -o $(TARGETDIR)/$(TARGET) $^ $(LIB)
 
 #compile
 $(BUILDDIR)/%.$(OBJEXT): $(SRCDIR)/%.$(SRCEXT)
 	@echo "  compiling: " $(SRCDIR)/$*
 	@mkdir -p $(dir $@)
-	@$(CXX) $(CXXFLAGS) $(INC) -c -o $@ $< $(LIB)
-	@$(CXX) $(CXXFLAGS) $(INCDEP) -MM $(SRCDIR)/$*.$(SRCEXT) > $(BUILDDIR)/$*.$(DEPEXT)
+	@$(NVCC) $(CXXFLAGS) $(INC) -c -o $@ $< $(LIB)
+	@$(NVCC) $(CXXFLAGS) $(INC) $(INCDEP) -MM $(SRCDIR)/$*.$(SRCEXT) > $(BUILDDIR)/$*.$(DEPEXT)
 	@cp -f $(BUILDDIR)/$*.$(DEPEXT) $(BUILDDIR)/$*.$(DEPEXT).tmp
 	@sed -e 's|.*:|$(BUILDDIR)/$*.$(OBJEXT):|' < $(BUILDDIR)/$*.$(DEPEXT).tmp > $(BUILDDIR)/$*.$(DEPEXT)
 	@sed -e 's/.*://' -e 's/\\$$//' < $(BUILDDIR)/$*.$(DEPEXT).tmp | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $(BUILDDIR)/$*.$(DEPEXT)
 	@rm -f $(BUILDDIR)/$*.$(DEPEXT).tmp
 
+$(BUILDDIR)/%.$(OBJEXT): $(SRCDIR)/%.$(CUDASRCEXT)
+	@echo "  compiling: " $(SRCDIR)/$*
+	@mkdir -p $(dir $@)
+	@$(NVCC) $(GPU_ARCH) $(NVFLAGS) -I$(CUDADIR) -c -o $@ $<
+	@$(NVCC) $(GPU_ARCH) $(NVFLAGS) -I$(CUDADIR) -MM $(SRCDIR)/$*.$(CUDASRCEXT) > $(BUILDDIR)/$*.$(DEPEXT)
 
 #compile test files
 tester: directories
@@ -116,4 +130,4 @@ doc: doxyfile.inc
 	cp -r "./doc/html/" "./docs/"
 
 #Non-File Targets
-.PHONY: all remake clean cleaner resources sources directories ideas tester doc movie
+.PHONY: all remake clean cleaner resources sources directories ideas tester doc

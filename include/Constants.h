@@ -1,21 +1,42 @@
-//
-// Created by Michael Staneker on 15.03.21.
-//
+#ifndef CONSTANTS_H_
+#define CONSTANTS_H_
 
-#ifndef BARNESHUTSERIAL_CONSTANTS_H
-#define BARNESHUTSERIAL_CONSTANTS_H
+typedef struct SimulationParameters
+{
 
-#define DIM 3
-#define pwrtwo(x) (1 << (x))
-#define POWDIM pwrtwo(DIM)
+    //bool debug;
+    //bool benchmark;
+    //bool fullscreen;
+    bool timeKernels;
+    int iterations;
+    int numberOfParticles;
+    float timestep;
+    float gravity;
+    float dampening;
+    int gridSize;
+    int blockSize;
+    int warp;
+    int stackSize;
+    int renderInterval;
 
-//#define NULL nullptr
+} SimulationParameters;
 
-const float PI = 3.14159265358979323846;
-const float TO_METERS = 1.496e11;
-const float G = 6.67408e-11;
+/// Physical constants
+const double PI = 3.14159265358979323846;   //! Pi
+const double TO_METERS = 1.496e11;          //! AU to meters
+const double G = 6.67408e-11;               //! Gravitational constant
 
-const float SOLAR_MASS = 2.0e30;
-//const float theta = 0.75;
 
-#endif //BARNESHUTSERIAL_CONSTANTS_H
+/// Rendering related
+const int WIDTH = 1024;
+const int HEIGHT = 1024;
+const double RENDER_SCALE = 2.5;
+const double MAX_VEL_COLOR = 1500.0;
+const double MIN_VEL_COLOR = 0;
+const double PARTICLE_BRIGHTNESS = 0.35;
+const double PARTICLE_SHARPNESS = 1.0;
+const int DOT_SIZE = 8;
+const int RENDER_INTERVAL = 2; // How many timesteps to simulate in between each frame rendered
+
+
+#endif /* CONSTANTS_H_ */

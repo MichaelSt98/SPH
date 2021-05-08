@@ -1,8 +1,0 @@
-file bin/runner
-
-# Setting breakpoints
-#b main.cpp:156
-#br dis 1
-#br dis 2
-
-run
