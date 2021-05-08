@@ -36,6 +36,9 @@ public:
                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                     float *minZ, float *maxZ, int n, int m, bool timing=false);
 
+    void getParticleKey(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
+                                   float *minZ, float *maxZ, unsigned long *key, int maxLevel, int n);
+
     float centreOfMass(float *x, float *y, float *z, float *mass, int *index, int n, bool timing=false);
 
     float sort(int *count, int *start, int *sorted, int *child, int *index, int n, bool timing=false);

@@ -221,6 +221,9 @@ void BarnesHut::update(int step)
     elapsedTimeKernel = KernelHandler.buildTree(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
                       d_min_z, d_max_z, numParticles, numNodes, timeKernels);
 
+    KernelHandler.getParticleKey(d_x, d_y, d_z, d_min_x, d_max_x, d_min_y, d_max_y,
+                                 d_min_z, d_max_z, 0UL, 21, numParticles);
+
     time_buildTree[step] = elapsedTimeKernel;
     if (timeKernels) {
         Logger(TIME) << "\tBuilding tree: " << elapsedTimeKernel << " ms";

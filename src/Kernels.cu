@@ -376,6 +376,96 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
     }
 }
 
+/*void SubDomain::getKeyIteratively() {
+    KeyType helperKey { 0 };
+    ParticleList pList;
+    //gatherParticles(pList);
+    root.getParticleList(pList);
+    for (int i=0; i<pList.size(); i++) {
+        //helperKey = 0;
+        root.particle2Key(helperKey, pList[i]);
+        Logger(INFO) << "iteratively key[" << i << "] = " << helperKey;
+    }
+
+}*/
+
+/*void TreeNode::particle2Key(KeyType &key, Particle &p) {
+    int level = 0;
+    int sonBox;
+    Domain domain{ box };
+    while (level <= key.maxLevel) {
+        sonBox = getSonBox(p, domain);
+        //key = key | (KeyType{ sonBox } << (DIM * (key.maxLevel-level-1)));
+        level ++;
+    }
+}*/
+
+__device__ void key2Char(unsigned long key, int maxLevel, char *keyAsChar) {
+    int level[21];
+    for (int i=0; i<maxLevel; i++) {
+        level[i] = (int)(key >> (maxLevel*3 - 3*(i+1)) & (int)7);
+    }
+    for (int i=0; i<maxLevel; i++) {
+        keyAsChar[i] = level[i] + '0';
+    }
+    level[maxLevel] = '\0';
+}
+
+__global__ void getParticleKeyKernel(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
+                               float *minZ, float *maxZ, unsigned long *key, int maxLevel, int n) {
+
+    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+    int offset = 0;
+    unsigned long testKey;
+
+    int sonBox = 0;
+    float min_x = *minX;
+    float max_x = *maxX;
+    float min_y = *minY;
+    float max_y = *maxY;
+    float min_z = *minZ;
+    float max_z = *maxZ;
+
+    while (bodyIndex + offset < n) {
+
+        int level = 0;
+        testKey = 0UL;
+        while (level <= maxLevel) {
+
+            // find insertion point for body
+            if (x[bodyIndex + offset] < 0.5 * (min_x+max_x)) {
+                sonBox += 1;
+                max_x = 0.5 * (min_x+max_x);
+            }
+            else { min_x = 0.5 * (min_x+max_x); }
+            if (y[bodyIndex + offset] < 0.5 * (min_y+max_y)) {
+                sonBox += 2;
+                max_y = 0.5 * (min_y + max_y);
+            }
+            else { min_y = 0.5 * (min_y + max_y); }
+            if (z[bodyIndex + offset] < 0.5 * (min_z+max_z)) {
+                sonBox += 4;
+                max_z = 0.5 * (min_z + max_z);
+            }
+            else { min_z =  0.5 * (min_z + max_z); }
+
+            //*key = *key; //| ((unsigned long)sonBox << (unsigned long)(3 * (maxLevel-level-1)));
+            testKey = testKey | ((unsigned long)sonBox << (unsigned long)(3 * (maxLevel-level-1)));
+            level ++;
+        }
+
+        char keyAsChar[22];
+        key2Char(testKey, 21, keyAsChar);
+        if ((bodyIndex + offset) % 1000 == 0) {
+            //printf("key[%i]: %lu\n", bodyIndex + offset, testKey);
+            printf("key[%i]: %s\n", bodyIndex + offset, keyAsChar);
+        }
+
+        offset += stride;
+    }
+}
+
 
 // Kernel 3: computes the COM for each cell
 __global__ void centreOfMassKernel(float *x, float *y, float *z, float *mass, int *index, int n)

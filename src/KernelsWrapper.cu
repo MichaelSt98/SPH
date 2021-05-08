@@ -106,6 +106,13 @@ float KernelsWrapper::buildTree(float *x, float *y, float *z, float *mass, int *
 
 }
 
+void KernelsWrapper::getParticleKey(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
+                    float *minZ, float *maxZ, unsigned long *key, int maxLevel, int n) {
+
+    getParticleKeyKernel<<< gridSize, blockSize >>>(x, y, z, minX, maxX, minY, maxY, minZ, maxZ, 0UL, 21, n);
+
+}
+
 float KernelsWrapper::centreOfMass(float *x, float *y, float *z, float *mass, int *index, int n, bool timing) {
 
     float elapsedTime = 0.f;
