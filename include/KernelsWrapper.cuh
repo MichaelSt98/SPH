@@ -37,7 +37,8 @@ public:
                     float *minZ, float *maxZ, int n, int m, bool timing=false);
 
     void getParticleKey(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
-                                   float *minZ, float *maxZ, unsigned long *key, int maxLevel, int n);
+                                   float *minZ, float *maxZ, unsigned long *key, int maxLevel, int n,
+                                   SubDomainKeyTree *s);
 
     float centreOfMass(float *x, float *y, float *z, float *mass, int *index, int n, bool timing=false);
 

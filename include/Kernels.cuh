@@ -10,6 +10,7 @@
 #define CUDA_NBODY_KERNELS_CUH
 
 #include "Constants.h"
+#include "SubDomainKeyTree.cuh"
 
 #include <iostream>
 #include <stdio.h>
@@ -87,7 +88,10 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
 __device__ void key2Char(unsigned long key, int maxLevel, char *keyAsChar);
 
 __global__ void getParticleKeyKernel(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
-                               float *minZ, float *maxZ, unsigned long *key, int maxLevel, int n);
+                               float *minZ, float *maxZ, unsigned long *key, int maxLevel, int n, SubDomainKeyTree *s);
+
+
+__device__ int key2proc(unsigned long k, SubDomainKeyTree *s);
 
 /**
  * Kernel 3: computes the COM for each cell

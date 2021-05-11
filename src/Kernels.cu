@@ -376,43 +376,47 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
     }
 }
 
-/*void SubDomain::getKeyIteratively() {
-    KeyType helperKey { 0 };
-    ParticleList pList;
-    //gatherParticles(pList);
-    root.getParticleList(pList);
-    for (int i=0; i<pList.size(); i++) {
-        //helperKey = 0;
-        root.particle2Key(helperKey, pList[i]);
-        Logger(INFO) << "iteratively key[" << i << "] = " << helperKey;
-    }
-
-}*/
-
-/*void TreeNode::particle2Key(KeyType &key, Particle &p) {
-    int level = 0;
-    int sonBox;
-    Domain domain{ box };
-    while (level <= key.maxLevel) {
-        sonBox = getSonBox(p, domain);
-        //key = key | (KeyType{ sonBox } << (DIM * (key.maxLevel-level-1)));
-        level ++;
-    }
-}*/
-
 __device__ void key2Char(unsigned long key, int maxLevel, char *keyAsChar) {
     int level[21];
     for (int i=0; i<maxLevel; i++) {
         level[i] = (int)(key >> (maxLevel*3 - 3*(i+1)) & (int)7);
     }
     for (int i=0; i<maxLevel; i++) {
-        keyAsChar[i] = level[i] + '0';
+        keyAsChar[2*i] = level[i] + '0';
+        keyAsChar[2*i+1] = '|';
     }
     level[maxLevel] = '\0';
 }
 
+__device__ const unsigned char DirTable[12][8] =
+        { { 8,10, 3, 3, 4, 5, 4, 5}, { 2, 2,11, 9, 4, 5, 4, 5},
+          { 7, 6, 7, 6, 8,10, 1, 1}, { 7, 6, 7, 6, 0, 0,11, 9},
+          { 0, 8, 1,11, 6, 8, 6,11}, {10, 0, 9, 1,10, 7, 9, 7},
+          {10, 4, 9, 4,10, 2, 9, 3}, { 5, 8, 5,11, 2, 8, 3,11},
+          { 4, 9, 0, 0, 7, 9, 2, 2}, { 1, 1, 8, 5, 3, 3, 8, 6},
+          {11, 5, 0, 0,11, 6, 2, 2}, { 1, 1, 4,10, 3, 3, 7,10} };
+
+__device__ const unsigned char HilbertTable[12][8] = { {0,7,3,4,1,6,2,5}, {4,3,7,0,5,2,6,1}, {6,1,5,2,7,0,4,3},
+                                                       {2,5,1,6,3,4,0,7}, {0,1,7,6,3,2,4,5}, {6,7,1,0,5,4,2,3},
+                                                       {2,3,5,4,1,0,6,7}, {4,5,3,2,7,6,0,1}, {0,3,1,2,7,4,6,5},
+                                                       {2,1,3,0,5,6,4,7}, {4,7,5,6,3,0,2,1}, {6,5,7,4,1,2,0,3} };
+
+__device__ unsigned long Lebesgue2Hilbert(unsigned long lebesgue, int maxLevel) {
+    unsigned long hilbert = 0UL;
+    int dir = 0;
+    for (int lvl=maxLevel; lvl>0; lvl--) {
+        unsigned long cell = (lebesgue >> ((lvl-1)*3)) & (unsigned long)((1<<3)-1);
+        hilbert = hilbert << 3;
+        if (lvl > 0) {
+            hilbert += HilbertTable[dir][cell];
+        }
+        dir = DirTable[dir][cell];
+    }
+    return hilbert;
+}
+
 __global__ void getParticleKeyKernel(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
-                               float *minZ, float *maxZ, unsigned long *key, int maxLevel, int n) {
+                               float *minZ, float *maxZ, unsigned long *key, int maxLevel, int n, SubDomainKeyTree *s) {
 
     int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
     int stride = blockDim.x * gridDim.x;
@@ -455,15 +459,31 @@ __global__ void getParticleKeyKernel(float *x, float *y, float *z, float *minX, 
             level ++;
         }
 
-        char keyAsChar[22];
-        key2Char(testKey, 21, keyAsChar);
-        if ((bodyIndex + offset) % 1000 == 0) {
+        char keyAsChar[21 * 2 + 2];
+        unsigned long hilbertTestKey = Lebesgue2Hilbert(testKey, 21);
+        int proc = key2proc(testKey, s);
+        //key2Char(testKey, 21, keyAsChar);
+        key2Char(hilbertTestKey, 21, keyAsChar);
+        if ((bodyIndex + offset) % 5000 == 0) {
             //printf("key[%i]: %lu\n", bodyIndex + offset, testKey);
-            printf("key[%i]: %s\n", bodyIndex + offset, keyAsChar);
+            //for (int proc=0; proc<=s->numProcesses; proc++) {
+            //    printf("range[%i] = %lu\n", proc, s->range[proc]);
+            //}
+            printf("key[%i]: %s  =  %lu (proc = %i)\n", bodyIndex + offset, keyAsChar, testKey, proc);
         }
 
         offset += stride;
     }
+}
+
+__device__ int key2proc(unsigned long k, SubDomainKeyTree *s) {
+    for (int i=0; i<s->numProcesses; i++) {
+        if (k >= s->range[i] && k < s->range[i+1]) {
+            return i;
+        }
+    }
+    //printf("ERROR: key2proc(k=%lu): -1!", k);
+    return -1; // error
 }
 
 

@@ -58,6 +58,15 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     time_copyDeviceToHost = new float[parameters.iterations];
     time_all = new float [parameters.iterations];
 
+
+    h_subDomainHandler = new SubDomainKeyTree();
+    h_subDomainHandler->rank = 0;
+    h_subDomainHandler->range = new unsigned long[3];
+    h_subDomainHandler->range[0] = 0;
+    h_subDomainHandler->range[1] = KEY_MAX/2;
+    h_subDomainHandler->range[2] = KEY_MAX;
+    h_subDomainHandler->numProcesses = 2;
+
     // allocate device data
     gpuErrorcheck(cudaMalloc((void**)&d_min_x, sizeof(float)));
     gpuErrorcheck(cudaMalloc((void**)&d_max_x, sizeof(float)));
@@ -94,6 +103,15 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     gpuErrorcheck(cudaMalloc((void**)&d_count, numNodes*sizeof(int)));
     gpuErrorcheck(cudaMalloc((void**)&d_mutex, sizeof(int)));
 
+    //gpuErrorcheck(cudaMalloc((void**)&d_subDomainHandler, sizeof(SubDomainKeyTree)));
+    gpuErrorcheck(cudaMalloc((void**)&d_subDomainHandler, sizeof(SubDomainKeyTree)));
+    int size = 2 * sizeof(int) + 3 * sizeof(unsigned long);
+    gpuErrorcheck(cudaMalloc((void**)&d_range, size));
+    //gpuErrorcheck(cudaMemset(d_subDomainHandler->rank, 0, sizeof(int)));
+    //gpuErrorcheck(cudaMemset(d_subDomainHandler->range, {0, KEY_MAX/2, KEY_MAX}, 3*sizeof(unsigned long)));
+    //gpuErrorcheck(cudaMemset(d_subDomainHandler->numProcesses, 2, sizeof(int)));
+
+
     gpuErrorcheck(cudaMemset(d_start, -1, numNodes*sizeof(int)));
     gpuErrorcheck(cudaMemset(d_sorted, 0, numNodes*sizeof(int)));
 
@@ -105,8 +123,17 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     diskModel(h_mass, h_x, h_y, h_z, h_vx, h_vy, h_vz, h_ax, h_ay, h_az, numParticles);
 
 
-
     // copy data to GPU device
+
+    cudaMemcpy(d_subDomainHandler, h_subDomainHandler, sizeof(SubDomainKeyTree), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_range, h_subDomainHandler->range, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(&(d_subDomainHandler->range), &d_range, sizeof(unsigned long*), cudaMemcpyHostToDevice);
+
+    //cudaMemcpy(d_subDomainHandler, h_subDomainHandler, sizeof(*h_subDomainHandler), cudaMemcpyHostToDevice);
+    //cudaMemcpy(&d_subDomainHandler->rank, &h_subDomainHandler->rank, sizeof(int), cudaMemcpyHostToDevice);
+    //cudaMemcpy(&d_subDomainHandler->numProcesses, &h_subDomainHandler->numProcesses, sizeof(int), cudaMemcpyHostToDevice);
+    //cudaMemcpy(&d_subDomainHandler->range, &h_subDomainHandler->range, 3*sizeof(unsigned long), cudaMemcpyHostToDevice);
+
     cudaMemcpy(d_mass, h_mass, 2*numParticles*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_x, h_x, 2*numParticles*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_y, h_y, 2*numParticles*sizeof(float), cudaMemcpyHostToDevice);
@@ -222,7 +249,7 @@ void BarnesHut::update(int step)
                       d_min_z, d_max_z, numParticles, numNodes, timeKernels);
 
     KernelHandler.getParticleKey(d_x, d_y, d_z, d_min_x, d_max_x, d_min_y, d_max_y,
-                                 d_min_z, d_max_z, 0UL, 21, numParticles);
+                                 d_min_z, d_max_z, 0UL, 21, numParticles, d_subDomainHandler);
 
     time_buildTree[step] = elapsedTimeKernel;
     if (timeKernels) {

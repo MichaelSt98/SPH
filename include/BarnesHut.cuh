@@ -10,6 +10,8 @@
 #include <iostream>
 #include <stdio.h>
 #include <cuda.h>
+#include <climits> // for ulong_max
+#define KEY_MAX ULONG_MAX
 
 #define gpuErrorcheck(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
@@ -52,6 +54,8 @@ private:
     int *h_sorted;
     int *h_count;
 
+    SubDomainKeyTree *h_subDomainHandler;
+
     float *d_min_x;
     float *d_max_x;
     float *d_min_y;
@@ -78,6 +82,9 @@ private:
     int *d_start;
     int *d_sorted;
     int *d_count;
+
+    SubDomainKeyTree *d_subDomainHandler;
+    unsigned long *d_range;
 
     int *d_mutex;  //used for locking
 
