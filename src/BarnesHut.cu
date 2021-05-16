@@ -155,6 +155,9 @@ BarnesHut::~BarnesHut() {
     delete h_min_z;
     delete h_max_z;
 
+    delete [] h_subDomainHandler->range;
+    delete h_subDomainHandler;
+
     delete [] h_mass;
 
     delete [] h_x;
@@ -193,6 +196,10 @@ BarnesHut::~BarnesHut() {
     gpuErrorcheck(cudaFree(d_max_z));
 
     gpuErrorcheck(cudaFree(d_mass));
+
+    gpuErrorcheck(cudaFree(d_subDomainHandler->range));
+    gpuErrorcheck(cudaFree(d_subDomainHandler));
+    gpuErrorcheck(cudaFree(d_range));
 
     gpuErrorcheck(cudaFree(d_x));
     gpuErrorcheck(cudaFree(d_y));
@@ -248,8 +255,14 @@ void BarnesHut::update(int step)
     elapsedTimeKernel = KernelHandler.buildTree(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
                       d_min_z, d_max_z, numParticles, numNodes, timeKernels);
 
-    KernelHandler.getParticleKey(d_x, d_y, d_z, d_min_x, d_max_x, d_min_y, d_max_y,
-                                 d_min_z, d_max_z, 0UL, 21, numParticles, d_subDomainHandler);
+    //KernelHandler.getParticleKey(d_x, d_y, d_z, d_min_x, d_max_x, d_min_y, d_max_y,
+    //                           d_min_z, d_max_z, 0UL, 21, numParticles, d_subDomainHandler);
+
+
+
+    KernelHandler.traverseIterative(d_x, d_y, d_z, d_mass, d_child, numParticles, numNodes, d_subDomainHandler, 21);
+    //KernelHandler.createDomainList(d_x, d_y, d_z, d_mass, d_child, numParticles, d_subDomainHandler, 21);
+
 
     time_buildTree[step] = elapsedTimeKernel;
     if (timeKernels) {

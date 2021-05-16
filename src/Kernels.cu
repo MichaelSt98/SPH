@@ -192,7 +192,7 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
             min_z = *minZ;
             max_z = *maxZ;
 
-            temp = 0; //m
+            temp = 0; //bodyIndex + offset; //0; //m
             childPath = 0;
 
             // find insertion point for body
@@ -226,6 +226,8 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
 
         // traverse tree until hitting leaf node
         while (childIndex >= n) {
+
+            //printf("Im here!");
 
             temp = childIndex;
             childPath = 0;
@@ -275,13 +277,13 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
 
             if (atomicCAS(&child[locked], childIndex, -2) == childIndex) {
 
-                // check whether body is already stored at the location
+                // check whether a body is already stored at the location
                 if (childIndex == -1) {
                     //insert body and release lock
                     child[locked] = bodyIndex + offset;
                 }
                 else {
-                    int patch = 8*n; //4*n //-1
+                    int patch = 8*n; //8*n //4*n //-1
                     while (childIndex >= 0 && childIndex < n) {
 
                         //create a new cell (by atomically requesting the next unused array index)
@@ -415,6 +417,50 @@ __device__ unsigned long Lebesgue2Hilbert(unsigned long lebesgue, int maxLevel) 
     return hilbert;
 }
 
+__device__ unsigned long getParticleKeyPerParticle(float x, float y, float z,
+                                                   float *minX, float *maxX, float *minY,
+                                                   float *maxY, float *minZ, float *maxZ,
+                                                   int maxLevel) {
+
+    int level = 0;
+    unsigned long testKey = 0UL;
+
+    int sonBox = 0;
+    float min_x = *minX;
+    float max_x = *maxX;
+    float min_y = *minY;
+    float max_y = *maxY;
+    float min_z = *minZ;
+    float max_z = *maxZ;
+
+    while (level <= maxLevel) {
+
+        //sonBox = 0; //TODO: needed?
+
+        // find insertion point for body
+        if (x < 0.5 * (min_x+max_x)) {
+            sonBox += 1;
+            max_x = 0.5 * (min_x+max_x);
+        }
+        else { min_x = 0.5 * (min_x+max_x); }
+        if (y < 0.5 * (min_y+max_y)) {
+            sonBox += 2;
+            max_y = 0.5 * (min_y + max_y);
+        }
+        else { min_y = 0.5 * (min_y + max_y); }
+        if (z < 0.5 * (min_z+max_z)) {
+            sonBox += 4;
+            max_z = 0.5 * (min_z + max_z);
+        }
+        else { min_z =  0.5 * (min_z + max_z); }
+
+        testKey = testKey | ((unsigned long)sonBox << (unsigned long)(3 * (maxLevel-level-1)));
+        level ++;
+    }
+    return testKey;
+
+}
+
 __global__ void getParticleKeyKernel(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
                                float *minZ, float *maxZ, unsigned long *key, int maxLevel, int n, SubDomainKeyTree *s) {
 
@@ -435,7 +481,14 @@ __global__ void getParticleKeyKernel(float *x, float *y, float *z, float *minX, 
 
         int level = 0;
         testKey = 0UL;
-        while (level <= maxLevel) {
+        //sonBox = 0; //TODO: needed?
+
+        testKey = getParticleKeyPerParticle(x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset],
+                                            minX, maxX, minY, maxY, minZ, maxZ, maxLevel);
+
+        /*while (level <= maxLevel) {
+
+            //sonBox = 0; //TODO: needed?
 
             // find insertion point for body
             if (x[bodyIndex + offset] < 0.5 * (min_x+max_x)) {
@@ -457,7 +510,7 @@ __global__ void getParticleKeyKernel(float *x, float *y, float *z, float *minX, 
             //*key = *key; //| ((unsigned long)sonBox << (unsigned long)(3 * (maxLevel-level-1)));
             testKey = testKey | ((unsigned long)sonBox << (unsigned long)(3 * (maxLevel-level-1)));
             level ++;
-        }
+        }*/
 
         char keyAsChar[21 * 2 + 2];
         unsigned long hilbertTestKey = Lebesgue2Hilbert(testKey, 21);
@@ -485,6 +538,160 @@ __device__ int key2proc(unsigned long k, SubDomainKeyTree *s) {
     //printf("ERROR: key2proc(k=%lu): -1!", k);
     return -1; // error
 }
+
+/*void createDomainList(TreeNode *t, int level, keytype k, SubDomainKeyTree *s) {
+    t->node = domainList;
+    int p1 = key2proc(k, s);
+    int p2 = key2proc(k | ~(~0L << DIM*(maxlevel-level)),s);
+    if (p1 != p2) {
+        for (int i = 0; i < POWDIM; i++) {
+            t->son[i] = (TreeNode *) calloc(1, sizeof(TreeNode));
+            createDomainList(t->son[i], level + 1,  (keytype)(k | ((keytype)i << (DIM*(maxlevel-level-1)))), s);
+        }
+    }
+}*/
+
+
+/*
+ function traverse_iter_dfs(octree):
+     stack = empty
+     push_stack(root_node)
+     while not empty (stack):
+         node = pop(stack)
+         collect value(node)
+         for child in children(node):
+             push_stack(child)
+ */
+
+__global__ void traverseIterativeKernel(float *x, float *y, float *z, float *mass, int *child, int n, int m,
+                         SubDomainKeyTree *s, int maxLevel) {
+
+    __shared__ int stack[128]; //stack[256];
+    //int stack[600000]; //65536
+    __shared__ int *stackPtr;// = stack;
+    //int *stackPtr = stack;
+    stackPtr = stack;
+    *stackPtr++ = NULL;
+
+    //initialize first element (root)
+    //int node = NULL;
+    int childIndex = n;
+    int node = childIndex;
+    stack[0] = childIndex;
+
+    int popped = 0;
+    int pushed = 0;
+    int particleCounter = 0;
+
+    int bodyIndex = threadIdx.x + blockDim.x*blockIdx.x;
+    //if (threadIdx.x == 0) {
+    if (bodyIndex == 0) {
+        //printf("childIndex = %i\n", childIndex);
+        //printf("child[childIndex] = %i\n", child[childIndex]);
+        //int children = child[childIndex];
+        while (node != NULL) {
+            node = *--stackPtr; // pop
+            popped++;
+            //printf("pop stack: %i\n", node);
+            childIndex = 8*node; //child[8*node]; //child[child[8 * node]];
+            //printf("childIndex = %i\n", childIndex);
+            // do something
+
+            /*for (int i = 0; i < 8; i++) {
+                if (child[childIndex + i] != -1 && childIndex > n) { //&& pushed - popped < 1000) {
+                    *stackPtr++ = child[childIndex + i]; //child[childIndex + i]; // push
+                    //printf("push stack\n");
+                    pushed++;
+                }
+                else {
+                    if (child[childIndex + i] < n && child[childIndex + i] > -1) {
+                        particleCounter++;
+                    }
+                }
+            }*/
+            for (int i=0; i < 8; i++) {
+                if (child[childIndex + i] != -1 && childIndex > 0) {
+                    if (child[childIndex + i] >= n) {
+                        *stackPtr++ = child[childIndex + i];
+                        pushed++;
+                    }
+                    else {
+                        particleCounter++;
+                    }
+                }
+            }
+            //printf("pushed - popped = %i\n", pushed - popped);
+
+        }
+        printf("Finished! popped = %i   pushed = %i   particleCounter = %i\n", popped, pushed, particleCounter);
+    }
+    //__threadfence();
+
+    //printf("Hallo\n");
+}
+
+__global__ void createDomainListKernel(float *x, float *y, float *z, float *mass, int *child, int n,
+                                       SubDomainKeyTree *s, int maxLevel) {
+
+    unsigned long key = 0UL;
+    int level = 0;
+
+    //root cell!? at x[n] / child[8*n + i] !?
+    //#pragma unroll 8
+    int bodyIndex = threadIdx.x + blockDim.x*blockIdx.x;
+    //if (threadIdx.x == 0) {
+    if (bodyIndex == 0) {
+        for (int i = 0; i < 8; i++) {
+            printf("child[%i] = %i \n", i, child[8*n + i]);
+            // do something ...
+            if (child[8*n + i] != -1) {
+                for (int j=0; j<8; j++) {
+                    printf("\tchild[%i] = %i \n", j, child[8*child[8*n + i] + j]);
+                    // do something
+                    // if (child[8*child[8*n + i] + j] != -1) {
+                    // ...
+                    // }
+                }
+            }
+        }
+    }
+
+
+    /*int bodyIndex = threadIdx.x + blockDim.x*blockIdx.x;
+    int stride = blockDim.x*gridDim.x;
+    int offset = 0;
+
+    // reset quadtree arrays
+    while(bodyIndex + offset < m) {
+
+        #pragma unroll 8
+        for (int i = 0; i < 8; i++) {
+            if (child[(bodyIndex + offset) * 8 + i] != -1) {
+                // no child
+            }
+            else {
+                //child
+            }
+        }
+
+        //if (bodyIndex + offset < n) {
+        //    count[bodyIndex + offset] = 1;
+        //}
+    }*/
+
+
+}
+
+/*__device__ bool isDomainListNode(unsigned long key, int maxLevel, int level) {
+    p1 = key2proc(key, s);
+    p2 = key2proc(key | ~(~0L << 3*(maxLevel-level)), s);
+    if (p1 != p2) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}*/
 
 
 // Kernel 3: computes the COM for each cell

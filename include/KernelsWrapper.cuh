@@ -40,6 +40,12 @@ public:
                                    float *minZ, float *maxZ, unsigned long *key, int maxLevel, int n,
                                    SubDomainKeyTree *s);
 
+    void traverseIterative(float *x, float *y, float *z, float *mass, int *child, int n, int m,
+                           SubDomainKeyTree *s, int maxLevel);
+
+    void createDomainList(float *x, float *y, float *z, float *mass, int *child, int n,
+                     SubDomainKeyTree *s, int maxLevel);
+
     float centreOfMass(float *x, float *y, float *z, float *mass, int *index, int n, bool timing=false);
 
     float sort(int *count, int *start, int *sorted, int *child, int *index, int n, bool timing=false);

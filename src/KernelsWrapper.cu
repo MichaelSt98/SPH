@@ -113,6 +113,18 @@ void KernelsWrapper::getParticleKey(float *x, float *y, float *z, float *minX, f
 
 }
 
+void KernelsWrapper::traverseIterative(float *x, float *y, float *z, float *mass, int *child, int n, int m,
+                       SubDomainKeyTree *s, int maxLevel) {
+
+    traverseIterativeKernel<<< gridSize, blockSize >>>(x, y, z, mass, child, n, m, s, maxLevel);
+
+}
+
+void KernelsWrapper::createDomainList(float *x, float *y, float *z, float *mass, int *child, int n,
+                                      SubDomainKeyTree *s, int maxLevel) {
+    createDomainListKernel<<< gridSize, blockSize >>>(x, y, z, mass, child, n, s, maxLevel);
+};
+
 float KernelsWrapper::centreOfMass(float *x, float *y, float *z, float *mass, int *index, int n, bool timing) {
 
     float elapsedTime = 0.f;

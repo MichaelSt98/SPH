@@ -90,8 +90,18 @@ __device__ void key2Char(unsigned long key, int maxLevel, char *keyAsChar);
 __global__ void getParticleKeyKernel(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
                                float *minZ, float *maxZ, unsigned long *key, int maxLevel, int n, SubDomainKeyTree *s);
 
+__device__ unsigned long getParticleKeyPerParticle(float x, float y, float z,
+                                                   float *minX, float *maxX, float *minY,
+                                                   float *maxY, float *minZ, float *maxZ,
+                                                   int maxLevel);
 
 __device__ int key2proc(unsigned long k, SubDomainKeyTree *s);
+
+__global__ void traverseIterativeKernel(float *x, float *y, float *z, float *mass, int *child, int n, int m,
+                         SubDomainKeyTree *s, int maxLevel);
+
+__global__ void createDomainListKernel(float *x, float *y, float *z, float *mass, int *child, int n,
+                                       SubDomainKeyTree *s, int maxLevel);
 
 /**
  * Kernel 3: computes the COM for each cell
