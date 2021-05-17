@@ -122,7 +122,14 @@ void KernelsWrapper::traverseIterative(float *x, float *y, float *z, float *mass
 
 void KernelsWrapper::createDomainList(float *x, float *y, float *z, float *mass, int *child, int n,
                                       SubDomainKeyTree *s, int maxLevel) {
-    createDomainListKernel<<< gridSize, blockSize >>>(x, y, z, mass, child, n, s, maxLevel);
+    //createDomainListKernel<<< gridSize, blockSize >>>(x, y, z, mass, child, n, s, maxLevel);
+};
+
+void KernelsWrapper::createDomainList(float *x, float *y, float *z, float *mass, float *minX, float *maxX,
+                                            float *minY, float *maxY, float *minZ, float *maxZ, int *child, int n,
+                                            SubDomainKeyTree *s, int maxLevel) {
+    createDomainListKernel<<< gridSize, blockSize >>>(x, y, z, mass, minX, maxX, minY, maxY, minZ, maxZ,
+                                                      child, n, s, maxLevel);
 };
 
 float KernelsWrapper::centreOfMass(float *x, float *y, float *z, float *mass, int *index, int n, bool timing) {

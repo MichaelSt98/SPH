@@ -46,6 +46,10 @@ public:
     void createDomainList(float *x, float *y, float *z, float *mass, int *child, int n,
                      SubDomainKeyTree *s, int maxLevel);
 
+    void createDomainList(float *x, float *y, float *z, float *mass, float *minX, float *maxX,
+                                                float *minY, float *maxY, float *minZ, float *maxZ, int *child, int n,
+                                                SubDomainKeyTree *s, int maxLevel);
+
     float centreOfMass(float *x, float *y, float *z, float *mass, int *index, int n, bool timing=false);
 
     float sort(int *count, int *start, int *sorted, int *child, int *index, int n, bool timing=false);

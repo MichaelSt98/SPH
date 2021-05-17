@@ -63,7 +63,7 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     h_subDomainHandler->rank = 0;
     h_subDomainHandler->range = new unsigned long[3];
     h_subDomainHandler->range[0] = 0;
-    h_subDomainHandler->range[1] = KEY_MAX/2;
+    h_subDomainHandler->range[1] = 4611686018427387904UL + 3872UL; //4UL << 62; //KEY_MAX/20; //(unsigned long)(1 << 61); //KEY_MAX/2;
     h_subDomainHandler->range[2] = KEY_MAX;
     h_subDomainHandler->numProcesses = 2;
 
@@ -256,12 +256,15 @@ void BarnesHut::update(int step)
                       d_min_z, d_max_z, numParticles, numNodes, timeKernels);
 
     //KernelHandler.getParticleKey(d_x, d_y, d_z, d_min_x, d_max_x, d_min_y, d_max_y,
-    //                           d_min_z, d_max_z, 0UL, 21, numParticles, d_subDomainHandler);
+                         //      d_min_z, d_max_z, 0UL, 21, numParticles, d_subDomainHandler);
 
 
-
-    KernelHandler.traverseIterative(d_x, d_y, d_z, d_mass, d_child, numParticles, numNodes, d_subDomainHandler, 21);
+    //KernelHandler.traverseIterative(d_x, d_y, d_z, d_mass, d_child, numParticles, numNodes, d_subDomainHandler, 21);
     //KernelHandler.createDomainList(d_x, d_y, d_z, d_mass, d_child, numParticles, d_subDomainHandler, 21);
+
+    KernelHandler.createDomainList(d_x, d_y, d_z, d_mass, d_min_x, d_max_x,
+                                        d_min_y, d_max_y, d_min_z, d_max_z, d_child, numParticles,
+                                        d_subDomainHandler, 21);
 
 
     time_buildTree[step] = elapsedTimeKernel;

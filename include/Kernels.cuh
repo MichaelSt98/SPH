@@ -100,8 +100,16 @@ __device__ int key2proc(unsigned long k, SubDomainKeyTree *s);
 __global__ void traverseIterativeKernel(float *x, float *y, float *z, float *mass, int *child, int n, int m,
                          SubDomainKeyTree *s, int maxLevel);
 
-__global__ void createDomainListKernel(float *x, float *y, float *z, float *mass, int *child, int n,
+/*__global__ void createDomainListKernel(float *x, float *y, float *z, float *mass, int *child, int n,
+                                       SubDomainKeyTree *s, int maxLevel);*/
+
+__global__ void createDomainListKernel(float *x, float *y, float *z, float *mass, float *minX, float *maxX,
+                                       float *minY, float *maxY, float *minZ, float *maxZ, int *child, int n,
                                        SubDomainKeyTree *s, int maxLevel);
+
+__device__ bool isDomainListNode(unsigned long key, int maxLevel, int level, SubDomainKeyTree *s);
+
+__device__ unsigned long keyMaxLevel(unsigned long key, int maxLevel, int level, SubDomainKeyTree *s);
 
 /**
  * Kernel 3: computes the COM for each cell
