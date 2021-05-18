@@ -29,8 +29,13 @@ public:
                       int *start, int *sorted, int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                       float *minZ, float *maxZ, int n, int m, bool timing=false);
 
+    void resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,  unsigned long *domainListIndices, int *domainListLevels);
+
     float computeBoundingBox(int *mutex, float *x, float *y, float *z, float *minX,
                              float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int n, bool timing=false);
+
+    void buildDomainTree(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels,
+                                          int *count, int *start, int *child, int *index, int n, int m);
 
     float buildTree(float *x, float *y, float *z, float *mass, int *count, int *start,
                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
@@ -46,9 +51,11 @@ public:
     void createDomainList(float *x, float *y, float *z, float *mass, int *child, int n,
                      SubDomainKeyTree *s, int maxLevel);
 
-    void createDomainList(float *x, float *y, float *z, float *mass, float *minX, float *maxX,
+    /*void createDomainList(float *x, float *y, float *z, float *mass, float *minX, float *maxX,
                                                 float *minY, float *maxY, float *minZ, float *maxZ, int *child, int n,
-                                                SubDomainKeyTree *s, int maxLevel);
+                                                SubDomainKeyTree *s, int maxLevel);*/
+
+    void createDomainList(SubDomainKeyTree *s, int maxLevel, unsigned long *domainListKeys, int *levels, int *index);
 
     float centreOfMass(float *x, float *y, float *z, float *mass, int *index, int n, bool timing=false);
 

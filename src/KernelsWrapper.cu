@@ -53,6 +53,11 @@ float KernelsWrapper::resetArrays(int *mutex, float *x, float *y, float *z, floa
 
 }
 
+void KernelsWrapper::resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,
+                                         unsigned long *domainListIndices, int *domainListLevels) {
+    resetArraysParallelKernel<<< gridSize, blockSize >>>(domainListIndex, domainListKeys, domainListIndices, domainListLevels);
+}
+
 float KernelsWrapper::computeBoundingBox(int *mutex, float *x, float *y, float *z, float *minX,
                                  float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int n, bool timing) {
 
@@ -75,6 +80,13 @@ float KernelsWrapper::computeBoundingBox(int *mutex, float *x, float *y, float *
         computeBoundingBoxKernel<<< gridSize, blockSize, 6*sizeof(float)*blockSizeInt >>>(mutex, x, y, z, minX, maxX, minY, maxY, minZ, maxZ, n, blockSizeInt);
     }
     return elapsedTime;
+
+}
+
+void KernelsWrapper::buildDomainTree(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels,
+                     int *count, int *start, int *child, int *index, int n, int m) {
+
+    buildDomainTreeKernel<<< 1, 1 >>>(domainListIndex, domainListKeys, domainListLevels, count, start, child, index, n, m);
 
 }
 
@@ -125,12 +137,17 @@ void KernelsWrapper::createDomainList(float *x, float *y, float *z, float *mass,
     //createDomainListKernel<<< gridSize, blockSize >>>(x, y, z, mass, child, n, s, maxLevel);
 };
 
-void KernelsWrapper::createDomainList(float *x, float *y, float *z, float *mass, float *minX, float *maxX,
+/*void KernelsWrapper::createDomainList(float *x, float *y, float *z, float *mass, float *minX, float *maxX,
                                             float *minY, float *maxY, float *minZ, float *maxZ, int *child, int n,
                                             SubDomainKeyTree *s, int maxLevel) {
-    createDomainListKernel<<< gridSize, blockSize >>>(x, y, z, mass, minX, maxX, minY, maxY, minZ, maxZ,
+    createDomainListKernel<<< 1, 1 >>>(x, y, z, mass, minX, maxX, minY, maxY, minZ, maxZ,
                                                       child, n, s, maxLevel);
-};
+};*/
+
+void KernelsWrapper::createDomainList(SubDomainKeyTree *s, int maxLevel, unsigned long *domainListKeys, int *levels,
+                                      int *index) {
+    createDomainListKernel<<<1, 1>>>(s, maxLevel, domainListKeys, levels, index);
+}
 
 float KernelsWrapper::centreOfMass(float *x, float *y, float *z, float *mass, int *index, int n, bool timing) {
 

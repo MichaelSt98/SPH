@@ -63,6 +63,25 @@ __global__ void resetArraysKernel(int *mutex, float *x, float *y, float *z, floa
     }
 }
 
+__global__ void resetArraysParallelKernel(int *domainListIndex, unsigned long *domainListKeys,
+                                          unsigned long *domainListIndices, int *domainListLevels) {
+    int bodyIndex = threadIdx.x + blockDim.x*blockIdx.x;
+    int stride = blockDim.x*gridDim.x;
+    int offset = 0;
+
+    // reset quadtree arrays
+    while(bodyIndex + offset < DOMAIN_LIST_SIZE) {
+        domainListLevels[bodyIndex+offset] = -1;
+        domainListKeys[bodyIndex+offset] = KEY_MAX;
+        domainListIndices[bodyIndex+offset] = KEY_MAX;
+        offset += stride;
+    }
+
+    if (bodyIndex == 0) {
+        *domainListIndex = 0;
+    }
+}
+
 // Kernel 1: computes bounding box around all bodies
 __global__ void computeBoundingBoxKernel(int *mutex, float *x, float *y, float *z, float *minX, float *maxX,
                                          float *minY, float *maxY, float *minZ, float *maxZ, int n, int blockSize)
@@ -153,6 +172,73 @@ __global__ void computeBoundingBoxKernel(int *mutex, float *x, float *y, float *
     }
 }
 
+__global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels,
+                                      int *count, int *start, int *child, int *index, int n, int m) {
+
+
+    int domainListIndices[512];
+    int domainListCounter = 0;
+
+    char keyAsChar[21 * 2 + 3];
+    int path[21];
+    if (false) {
+        printf("Index: %i\n", *domainListIndex);
+        for (int i = 0; i < *domainListIndex; i++) {
+            key2Char(domainListKeys[i], 21, keyAsChar);
+            printf("domainListKeys[%i] = %lu = %s (level: %i)\n", i, domainListKeys[i], keyAsChar, domainListLevels[i]);
+            for (int j = 0; j < domainListLevels[i]; j++) {
+                path[j] = (int) (domainListKeys[i] >> (21 * 3 - 3 * (j + 1)) & (int) 7);
+                printf("\tson: %i\n", path[j]);
+            }
+        }
+    }
+
+    // index = n as initial value
+    // insert root
+    //child[8*n] = n;
+    atomicAdd(index, 1); //*index++; //atomicAdd(index, 1);
+    int pathIndex;
+
+    domainListIndices[domainListCounter] = n;
+    domainListCounter++;
+
+    int counter;
+    // insert rest
+    for (int i=1; i < *domainListIndex; i++) {
+        for (int j = 0; j < domainListLevels[i]; j++) {
+            path[j] = (int) (domainListKeys[i] >> (21 * 3 - 3 * (j + 1)) & (int) 7);
+            //printf("\tson: %i\n", path[j]);
+            //child[8 * (n + i) + j] = n + i;
+        }
+        pathIndex = n;
+        counter = 0;
+        while (counter < domainListLevels[i]) {
+            if (child[8*pathIndex + path[counter]] == -1) {
+                printf("[%i] creating: %i\n", i, path[counter]);
+                atomicAdd(index, 1); //*index++; //atomicAdd(index, 1);
+                child[8*pathIndex + path[counter]] = *index;
+
+                domainListIndices[domainListCounter] = *index;
+                domainListCounter++;
+
+                //pathIndex = *index;
+            } else {
+                printf("[%i] already existing: %i\n", i, path[counter]);
+            }
+            pathIndex = child[8*pathIndex + path[counter]]; //*index;
+            printf("pathIndex: %i\n", pathIndex);
+            counter++;
+        }
+    }
+
+    *index = n;
+
+    for (int i=0; i<domainListCounter; i++) {
+        printf("domainListIndices[%i]: %i\n", i, domainListIndices[i]);
+    }
+
+}
+
 // Kernel 2: hierarchically subdivides the root cells
 __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                 int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
@@ -226,8 +312,6 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
 
         // traverse tree until hitting leaf node
         while (childIndex >= n) {
-
-            //printf("Im here!");
 
             temp = childIndex;
             childPath = 0;
@@ -665,51 +749,74 @@ __global__ void traverseIterativeKernel(float *x, float *y, float *z, float *mas
 
 }*/
 
-__global__ void createDomainListKernel(float *x, float *y, float *z, float *mass, float *minX, float *maxX,
-                                       float *minY, float *maxY, float *minZ, float *maxZ, int *child, int n,
-                                       SubDomainKeyTree *s, int maxLevel) {
+__global__ void createDomainListKernel(SubDomainKeyTree *s, int maxLevel, unsigned long *domainListKeys, int *levels,
+                                       int *index) {
 
-    int bodyIndex = threadIdx.x + blockDim.x * blockIdx.x;
+    //unsigned long domainListKeys[256];
+    //int levels[256];
+    //*index = 0;
 
-    if (bodyIndex == 0) {
+    char keyAsChar[21 * 2 + 3];
 
-        unsigned long domainListKeys[256];
-        int levels[256];
-        int index = 0;
+    unsigned long shiftValue = 1;
+    unsigned long toShift = 63;
+    unsigned long keyMax = (shiftValue << toShift) - 1; // 1 << 63 not working!
+    //key2Char(keyMax, 21, keyAsChar);
+    //printf("keyMax: %lu = %s\n", keyMax, keyAsChar);
 
-        unsigned long shiftValue = 1;
-        unsigned long toShift = 63;
-        unsigned long keyMax = shiftValue << toShift; // 1 << 63 not working!
-        unsigned long key2test = 0UL;
+    unsigned long key2test = 0UL;
+    //unsigned long key2test = 0UL + ((unsigned long)1 << 3 * (maxLevel-1));
 
-        int level = 0;
-        int counter = 0;
+    //for (int i=0; i<3; i++) {
+    //    key2Char(s->range[i], 21, keyAsChar);
+    //    printf("range[%i] = %lu = %s\n", i, s->range[i], keyAsChar);
+    //}
 
-        printf("Collecting domain list nodes/keys... (keyMax = %lu)\n", keyMax);
-        while (key2test < keyMax /*&& counter < 10*/) {
-            counter++;
-            printf("key2test = %lu\n", key2test);
+    int level = 0;
+
+    domainListKeys[*index] = key2test;
+    levels[*index] = level;
+    *index += 1;
+    level++;
+
+    while (key2test < keyMax) {
+        //key2Char(key2test, 21, keyAsChar);
+        //printf("key2test: %lu  = %s level: %i\n", key2test, keyAsChar, level);
+        //key2Char(key2test & (~0UL << (3 * (maxLevel - level + 1))), 21, keyAsChar);
+        //printf("ke2test shifted: %lu = %s level: %i\n", key2test & (~0UL << (3 * (maxLevel - level + 1))), keyAsChar, level-1);
+        if (isDomainListNode(key2test & (~0UL << (3 * (maxLevel - level + 1))), maxLevel, level-1, s)) {
+            domainListKeys[*index] = key2test;
+            levels[*index] = level;
+            *index += 1;
             if (isDomainListNode(key2test, maxLevel, level, s)) {
-                domainListKeys[index] = key2test;
-                levels[index] = level;
-                index++;
                 level++;
-                key2test = key2test + (1 << 3 * (maxLevel - level));
-            } else {
-                key2test = keyMaxLevel(key2test, maxLevel, level, s) + 1;
-                level--;
             }
+            else {
+                key2test = key2test + (1UL << 3 * (maxLevel - level));
+                //key2test = key2test + (1 << 3 * (maxLevel - level));
+            }
+        } else {
+            level--;
+            //key2test = keyMaxLevel(key2test, maxLevel, level, s) + 1;
+            // 1 = 1 :D
+            //key2test = keyMaxLevel(key2test & (~0UL << (3 * (maxLevel - level))), maxLevel, level, s) + 1 - (1UL << (3 * (maxLevel - level)));
         }
-        printf("Finished! #domain list nodes: %i\n", index);
-        for (int i=0; i < index; i++) {
-            printf("domainListKeys[%i] = %lu (level: %i)\n", i, domainListKeys[i], levels[i]);
-        }
+    }
+    //int path[21];
+    printf("Index: %i\n", *index);
+    for (int i=0; i < *index; i++) {
+        key2Char(domainListKeys[i], 21, keyAsChar);
+        printf("domainListKeys[%i] = %lu = %s (level: %i)\n", i, domainListKeys[i], keyAsChar, levels[i]);
+        /*for (int j=0; j<levels[i]; j++) {
+            path[j] = (int)(domainListKeys[i] >> (maxLevel*3 - 3*(j+1)) & (int)7);
+            printf("\tson: %i\n", path[j]);
+        }*/
     }
 }
 
 __device__ bool isDomainListNode(unsigned long key, int maxLevel, int level, SubDomainKeyTree *s) {
     int p1 = key2proc(key, s);
-    int p2 = key2proc(key | ~(~0L << 3*(maxLevel-level)), s);
+    int p2 = key2proc(key | ~(~0UL << 3*(maxLevel-level)), s);
     if (p1 != p2) {
         return true;
     }
@@ -719,7 +826,7 @@ __device__ bool isDomainListNode(unsigned long key, int maxLevel, int level, Sub
 }
 
 __device__ unsigned long keyMaxLevel(unsigned long key, int maxLevel, int level, SubDomainKeyTree *s) {
-    unsigned long keyMax = key | ~(~0L << 3*(maxLevel-level));
+    unsigned long keyMax = key | ~(~0UL << 3*(maxLevel-level));
     return keyMax;
 }
 
@@ -732,6 +839,21 @@ __global__ void centreOfMassKernel(float *x, float *y, float *z, float *mass, in
     int offset = 0;
 
     //note: most of it already done within buildTreeKernel
+
+    if (bodyIndex == 0) {
+        printf("x[n] = %f\n", x[n]);
+        printf("y[n] = %f\n", y[n]);
+        printf("z[n] = %f\n", z[n]);
+        printf("mass[n] = %f\n", mass[n]);
+        printf("x[n+1] = %f\n", x[n+1]);
+        printf("y[n+1] = %f\n", y[n+1]);
+        printf("z[n+1] = %f\n", z[n+1]);
+        printf("mass[n+1] = %f\n", mass[n+1000]);
+        printf("x[n+1000] = %f\n", x[n+1000]);
+        printf("y[n+1000] = %f\n", y[n+1000]);
+        printf("z[n+1000] = %f\n", z[n+1000]);
+        printf("mass[n+1000] = %f\n", mass[n+1000]);
+    }
 
     bodyIndex += n;
 

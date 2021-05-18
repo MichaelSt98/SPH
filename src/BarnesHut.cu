@@ -29,6 +29,16 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
 
     h_mass = new float[numNodes];
 
+    h_domainListIndices = new unsigned long[DOMAIN_LIST_SIZE];
+    h_domainListKeys = new unsigned long[DOMAIN_LIST_SIZE];
+    h_domainListLevels = new int[DOMAIN_LIST_SIZE];
+    h_domainListIndex = new int;
+    for (int i=0; i<DOMAIN_LIST_SIZE; i++) {
+        h_domainListIndices[i] = KEY_MAX;
+        h_domainListKeys[i] = KEY_MAX;
+        h_domainListLevels[i] = -1;
+    }
+
     h_x = new float[numNodes];
     h_y = new float[numNodes];
     h_z = new float[numNodes];
@@ -63,7 +73,7 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     h_subDomainHandler->rank = 0;
     h_subDomainHandler->range = new unsigned long[3];
     h_subDomainHandler->range[0] = 0;
-    h_subDomainHandler->range[1] = 4611686018427387904UL + 3872UL; //4UL << 62; //KEY_MAX/20; //(unsigned long)(1 << 61); //KEY_MAX/2;
+    h_subDomainHandler->range[1] = 4611686018427387904UL;// + 3872UL;
     h_subDomainHandler->range[2] = KEY_MAX;
     h_subDomainHandler->numProcesses = 2;
 
@@ -83,6 +93,11 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     gpuErrorcheck(cudaMemset(d_max_z, 0, sizeof(float)));
 
     gpuErrorcheck(cudaMalloc((void**)&d_mass, numNodes*sizeof(float)));
+
+    gpuErrorcheck(cudaMalloc((void**)&d_domainListIndices, DOMAIN_LIST_SIZE*sizeof(unsigned long)));
+    gpuErrorcheck(cudaMalloc((void**)&d_domainListKeys, DOMAIN_LIST_SIZE*sizeof(unsigned long)));
+    gpuErrorcheck(cudaMalloc((void**)&d_domainListLevels, DOMAIN_LIST_SIZE*sizeof(int)));
+    gpuErrorcheck(cudaMalloc((void**)&d_domainListIndex, sizeof(int)));
 
     gpuErrorcheck(cudaMalloc((void**)&d_x, numNodes*sizeof(float)));
     gpuErrorcheck(cudaMalloc((void**)&d_y, numNodes*sizeof(float)));
@@ -135,6 +150,11 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     //cudaMemcpy(&d_subDomainHandler->range, &h_subDomainHandler->range, 3*sizeof(unsigned long), cudaMemcpyHostToDevice);
 
     cudaMemcpy(d_mass, h_mass, 2*numParticles*sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_domainListIndices, h_domainListIndices, DOMAIN_LIST_SIZE*sizeof(unsigned long), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_domainListKeys, h_domainListKeys, DOMAIN_LIST_SIZE*sizeof(unsigned long), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_domainListLevels, h_domainListLevels, DOMAIN_LIST_SIZE*sizeof(int), cudaMemcpyHostToDevice);
+    gpuErrorcheck(cudaMemset(d_domainListIndex, 0, sizeof(int)));
+
     cudaMemcpy(d_x, h_x, 2*numParticles*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_y, h_y, 2*numParticles*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_z, h_z, 2*numParticles*sizeof(float), cudaMemcpyHostToDevice);
@@ -239,6 +259,8 @@ void BarnesHut::update(int step)
     elapsedTimeKernel = KernelHandler.resetArrays(d_mutex, d_x, d_y, d_z, d_mass, d_count, d_start, d_sorted, d_child, d_index,
                         d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z, numParticles, numNodes, timeKernels);
 
+    KernelHandler.resetArraysParallel(d_domainListIndex, d_domainListKeys, d_domainListIndices, d_domainListLevels);
+
     time_resetArrays[step] = elapsedTimeKernel;
     if (timeKernels) {
         Logger(TIME) << "\tReset arrays: " << elapsedTimeKernel << " ms";
@@ -252,6 +274,10 @@ void BarnesHut::update(int step)
         Logger(TIME) << "\tBounding box: " << elapsedTimeKernel << " ms";
     }
 
+    KernelHandler.createDomainList(d_subDomainHandler, 21, d_domainListKeys, d_domainListLevels, d_domainListIndex);
+    KernelHandler.buildDomainTree(d_domainListIndex, d_domainListKeys, d_domainListLevels, d_count, d_start, d_child,
+                                  d_index, numParticles, numNodes);
+
     elapsedTimeKernel = KernelHandler.buildTree(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
                       d_min_z, d_max_z, numParticles, numNodes, timeKernels);
 
@@ -259,12 +285,14 @@ void BarnesHut::update(int step)
                          //      d_min_z, d_max_z, 0UL, 21, numParticles, d_subDomainHandler);
 
 
-    //KernelHandler.traverseIterative(d_x, d_y, d_z, d_mass, d_child, numParticles, numNodes, d_subDomainHandler, 21);
+    KernelHandler.traverseIterative(d_x, d_y, d_z, d_mass, d_child, numParticles, numNodes, d_subDomainHandler, 21);
     //KernelHandler.createDomainList(d_x, d_y, d_z, d_mass, d_child, numParticles, d_subDomainHandler, 21);
 
-    KernelHandler.createDomainList(d_x, d_y, d_z, d_mass, d_min_x, d_max_x,
-                                        d_min_y, d_max_y, d_min_z, d_max_z, d_child, numParticles,
-                                        d_subDomainHandler, 21);
+    //KernelHandler.createDomainList(d_x, d_y, d_z, d_mass, d_min_x, d_max_x,
+      //                                  d_min_y, d_max_y, d_min_z, d_max_z, d_child, numParticles,
+        //                                d_subDomainHandler, 21);
+
+    //KernelHandler.createDomainList(d_subDomainHandler, 21, d_domainListIndices, d_domainListLevels, d_domainListIndex);
 
 
     time_buildTree[step] = elapsedTimeKernel;

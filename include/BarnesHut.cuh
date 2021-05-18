@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <cuda.h>
 #include <climits> // for ulong_max
-#define KEY_MAX ULONG_MAX
+//#define KEY_MAX ULONG_MAX
 
 #define gpuErrorcheck(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
@@ -36,6 +36,11 @@ private:
     float *h_max_z;
 
     float *h_mass;
+
+    unsigned long *h_domainListIndices;
+    unsigned long *h_domainListKeys;
+    int *h_domainListLevels;
+    int *h_domainListIndex;
 
     /*float *h_x;
     float *h_y;
@@ -64,6 +69,11 @@ private:
     float *d_max_z;
 
     float *d_mass;
+
+    unsigned long *d_domainListIndices;
+    unsigned long *d_domainListKeys;
+    int *d_domainListLevels;
+    int *d_domainListIndex;
 
     float *d_x;
     float *d_y;
