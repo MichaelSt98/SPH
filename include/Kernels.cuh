@@ -18,15 +18,18 @@
 #include <stdio.h>
 #include <cuda.h>
 
+#include <thrust/device_vector.h>
+
 /**
  * Reset the arrays/pointers.
  */
 __global__ void resetArraysKernel(int *mutex, float *x, float *y, float *z, float *mass, int *count, int *start,
                                   int *sorted, int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                                  float *minZ, float *maxZ, int n, int m);
+                                  float *minZ, float *maxZ, int n, int m, int *procCounter);
 
 __global__ void resetArraysParallelKernel(int *domainListIndex, unsigned long *domainListKeys,
-                                          unsigned long *domainListIndices, int *domainListLevels);
+                                          unsigned long *domainListIndices, int *domainListLevels,
+                                          float *tempArray, int n, int m);
 
 /**
  * Kernel 1: computes bounding box around all bodies
@@ -37,12 +40,25 @@ __global__ void computeBoundingBoxKernel(int *mutex, float *x, float *y, float *
 __global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels,
                                       int *count, int *start, int *child, int *index, int n, int m);
 
+__global__ void particlesPerProcessKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
+                                    int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                    float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter);
+
+__global__ void sendParticlesKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
+                                    int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                    float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
+                                    float *tempArray);
+
 /**
  * Kernel 2: hierarchically subdivides the root cells
  */
 __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                 int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                 float *minZ, float *maxZ, int n, int m);
+
+__global__ void treeInfoKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
+                               int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                               float *minZ, float *maxZ, int n, int m, int *procCounter);
 
 __device__ void key2Char(unsigned long key, int maxLevel, char *keyAsChar);
 

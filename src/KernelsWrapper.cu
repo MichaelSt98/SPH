@@ -27,7 +27,7 @@ KernelsWrapper::KernelsWrapper(SimulationParameters p) {
 
 float KernelsWrapper::resetArrays(int *mutex, float *x, float *y, float *z, float *mass, int *count,
                           int *start, int *sorted, int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                          float *minZ, float *maxZ, int n, int m, bool timing) {
+                          float *minZ, float *maxZ, int n, int m, int *procCounter, bool timing) {
 
     float elapsedTime = 0.f;
     if (timing) {
@@ -37,7 +37,7 @@ float KernelsWrapper::resetArrays(int *mutex, float *x, float *y, float *z, floa
         cudaEventRecord(start_t, 0);
 
         resetArraysKernel<<< gridSize, blockSize >>>(mutex, x, y, z, mass, count, start, sorted, child, index,
-                minX, maxX, minY, maxY, minZ, maxZ, n, m);
+                minX, maxX, minY, maxY, minZ, maxZ, n, m, procCounter);
 
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
@@ -47,15 +47,17 @@ float KernelsWrapper::resetArrays(int *mutex, float *x, float *y, float *z, floa
     }
     else {
         resetArraysKernel<<< gridSize, blockSize >>>(mutex, x, y, z, mass, count, start, sorted, child, index,
-                                                     minX, maxX, minY, maxY, minZ, maxZ, n, m);
+                                                     minX, maxX, minY, maxY, minZ, maxZ, n, m, procCounter);
     }
     return elapsedTime;
 
 }
 
 void KernelsWrapper::resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,
-                                         unsigned long *domainListIndices, int *domainListLevels) {
-    resetArraysParallelKernel<<< gridSize, blockSize >>>(domainListIndex, domainListKeys, domainListIndices, domainListLevels);
+                                         unsigned long *domainListIndices, int *domainListLevels,
+                                         float *tempArray, int n, int m) {
+    resetArraysParallelKernel<<< gridSize, blockSize >>>(domainListIndex, domainListKeys, domainListIndices,
+                                                         domainListLevels, tempArray, n, m);
 }
 
 float KernelsWrapper::computeBoundingBox(int *mutex, float *x, float *y, float *z, float *minX,
@@ -87,6 +89,35 @@ void KernelsWrapper::buildDomainTree(int *domainListIndex, unsigned long *domain
                      int *count, int *start, int *child, int *index, int n, int m) {
 
     buildDomainTreeKernel<<< 1, 1 >>>(domainListIndex, domainListKeys, domainListLevels, count, start, child, index, n, m);
+
+}
+
+void KernelsWrapper::treeInfo(float *x, float *y, float *z, float *mass, int *count, int *start,
+                                int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                float *minZ, float *maxZ, int n, int m, int *procCounter) {
+
+    treeInfoKernel<<< gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
+                                        minX, maxX, minY, maxY, minZ, maxZ, n, m, procCounter);
+
+}
+
+void KernelsWrapper::particlesPerProcess(float *x, float *y, float *z, float *mass, int *count, int *start,
+                                   int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                   float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter) {
+
+    particlesPerProcessKernel<<< gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
+                                                   minX, maxX, minY, maxY, minZ, maxZ, n, m, s, procCounter);
+
+}
+
+void KernelsWrapper::sendParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
+                   int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                   float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
+                   float *tempArray) {
+
+    sendParticlesKernel<<< gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
+                                                   minX, maxX, minY, maxY, minZ, maxZ, n, m, s, procCounter,
+                                                   tempArray);
 
 }
 
@@ -128,7 +159,7 @@ void KernelsWrapper::getParticleKey(float *x, float *y, float *z, float *minX, f
 void KernelsWrapper::traverseIterative(float *x, float *y, float *z, float *mass, int *child, int n, int m,
                        SubDomainKeyTree *s, int maxLevel) {
 
-    traverseIterativeKernel<<< gridSize, blockSize >>>(x, y, z, mass, child, n, m, s, maxLevel);
+    traverseIterativeKernel<<< 1, 1 >>>(x, y, z, mass, child, n, m, s, maxLevel);
 
 }
 

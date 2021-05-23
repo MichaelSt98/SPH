@@ -26,7 +26,7 @@ int main(int argc, char** argv)
     options.add_options()
             ("r,render", "render simulation", cxxopts::value<bool>(render))
             ("i,iterations", "number of iterations", cxxopts::value<int>()->default_value("100"))
-            ("n,particles", "number of particles", cxxopts::value<int>()->default_value("524288"))
+            ("n,particles", "number of particles", cxxopts::value<int>()->default_value("524288")) //"524288"
             ("b,blocksize", "block size", cxxopts::value<int>()->default_value("256"))
             ("g,gridsize", "grid size", cxxopts::value<int>()->default_value("1024"))
             ("R,renderinterval", "render interval", cxxopts::value<int>()->default_value("10"))
@@ -92,7 +92,7 @@ int main(int argc, char** argv)
 
     Renderer renderer { parameters.numberOfParticles, WIDTH, HEIGHT, RENDER_SCALE, MAX_VEL_COLOR, MIN_VEL_COLOR,
                         PARTICLE_BRIGHTNESS, PARTICLE_SHARPNESS, DOT_SIZE,
-                        2*particles->getSystemSize(), parameters.renderInterval };
+                        5*particles->getSystemSize(), parameters.renderInterval };
 
     /** Simulation */
     for(int i = 0 ; i < parameters.iterations ; i++){

@@ -42,6 +42,8 @@ private:
     int *h_domainListLevels;
     int *h_domainListIndex;
 
+    int *h_procCounter;
+
     /*float *h_x;
     float *h_y;
     float *h_z;
@@ -74,6 +76,10 @@ private:
     unsigned long *d_domainListKeys;
     int *d_domainListLevels;
     int *d_domainListIndex;
+
+    float *d_tempArray;
+
+    int *d_procCounter;
 
     float *d_x;
     float *d_y;

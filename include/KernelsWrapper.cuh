@@ -27,9 +27,10 @@ public:
 
     float resetArrays(int *mutex, float *x, float *y, float *z, float *mass, int *count,
                       int *start, int *sorted, int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                      float *minZ, float *maxZ, int n, int m, bool timing=false);
+                      float *minZ, float *maxZ, int n, int m, int *procCounter, bool timing=false);
 
-    void resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,  unsigned long *domainListIndices, int *domainListLevels);
+    void resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,  unsigned long *domainListIndices,
+                             int *domainListLevels, float *tempArray, int n, int m);
 
     float computeBoundingBox(int *mutex, float *x, float *y, float *z, float *minX,
                              float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int n, bool timing=false);
@@ -37,9 +38,22 @@ public:
     void buildDomainTree(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels,
                                           int *count, int *start, int *child, int *index, int n, int m);
 
+    void particlesPerProcess(float *x, float *y, float *z, float *mass, int *count, int *start,
+                                             int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                             float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter);
+
+    void sendParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
+                       int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                       float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
+                       float *tempArray);
+
     float buildTree(float *x, float *y, float *z, float *mass, int *count, int *start,
                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                     float *minZ, float *maxZ, int n, int m, bool timing=false);
+
+    void treeInfo(float *x, float *y, float *z, float *mass, int *count, int *start,
+                                  int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                  float *minZ, float *maxZ, int n, int m, int *procCounter);
 
     void getParticleKey(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
                                    float *minZ, float *maxZ, unsigned long *key, int maxLevel, int n,
