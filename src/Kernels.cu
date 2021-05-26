@@ -276,6 +276,32 @@ thrust::gather(indices.begin(), indices.end(), *pa_20, *sorted);
 pa_20 = sorted; sorted = &a_20;
  */
 
+/*__device__ void sortArrayKernel(float *arrayToSort, float *tempArray, int *keyIn, int *keyOut, int n) {
+    // Determine temporary device storage requirements
+    void     *d_temp_storage = NULL;
+    size_t   temp_storage_bytes = 0;
+    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
+                                    keyIn, keyOut, arrayToSort, tempArray, n);
+    // Allocate temporary storage
+    cudaMalloc(&d_temp_storage, temp_storage_bytes);
+    // Run sorting operation
+    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
+                                    keyIn, keyOut, arrayToSort, tempArray, n);
+}*/
+
+__global__ void copyArrayKernel(float *targetArray, float *sourceArray, int n) {
+    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+
+    int offset = 0;
+
+    while ((bodyIndex + offset) < 0) {
+        targetArray[bodyIndex + offset] = sourceArray[bodyIndex + offset];
+
+        offset += stride;
+    }
+}
+
 __global__ void sendParticlesKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                 int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                 float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
@@ -283,7 +309,7 @@ __global__ void sendParticlesKernel(float *x, float *y, float *z, float *mass, i
 
 
     // Determine temporary device storage requirements
-    void     *d_temp_storage = NULL;
+    /*void     *d_temp_storage = NULL;
     size_t   temp_storage_bytes = 0;
     cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
                                     sortArray, sortArrayOut, x, tempArray, n);
@@ -291,7 +317,7 @@ __global__ void sendParticlesKernel(float *x, float *y, float *z, float *mass, i
     cudaMalloc(&d_temp_storage, temp_storage_bytes);
     // Run sorting operation
     cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
-                                    sortArray, sortArrayOut, x, tempArray, n);
+                                    sortArray, sortArrayOut, x, tempArray, n);*/
 
     for (int i=0; i<5; i++) {
         //printf("x[%i] = %f  out[%i] = %f\n", i, x[i], i, tempArray[i]);

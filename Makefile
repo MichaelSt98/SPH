@@ -1,5 +1,5 @@
 #Compiler/Linker
-CXX            := g++
+CXX            := mpic++#g++
 NVCC           := /usr/local/cuda-10.1/bin/nvcc #nvcc
 
 #Target binary
@@ -24,13 +24,13 @@ OBJEXT         := o
 
 #Flags, Libraries and Includes
 CXXFLAGS       += -std=c++11 -O3 -w
-NVFLAGS        := -x cu -c -dc -w -Xcompiler "-pthread" -Wno-deprecated-gpu-targets -O3
-LFLAGS         += -g -lm -L$(CUDADIR)/lib64 -lcudart -lpthread -lconfig
+NVFLAGS        := -x cu -c -dc -w -Xcompiler "-pthread" -Wno-deprecated-gpu-targets -O3 -I/opt/openmpi-4.1.0/include #-lmpi
+LFLAGS         += -g -lm -L$(CUDADIR)/lib64 -lcudart -lpthread -lconfig -L/usr/local/cuda-10.1/lib64 -L/opt/openmpi-4.1.0/lib -lmpi
 GPU_ARCH       := -arch=sm_52
 CUDALFLAGS     := -dlink
 CUDALINKOBJ    := cuLink.o #needed?
 LIB            :=
-INC            := -I$(INCDIR) -I$(CUDADIR)/include #-I/usr/local/include
+INC            := -I$(INCDIR) -I$(CUDADIR)/include -I/opt/openmpi-4.1.0/include #-L/opt/openmpi-4.1.0/lib -lmpi #-I/usr/local/include
 INCDEP         := -I$(INCDIR)
 
 #Source and Object files
@@ -80,14 +80,14 @@ cleaner: clean
 #link
 $(TARGET): $(OBJECTS) $(CUDA_OBJECTS)
 	@echo "Linking ..."
-	@$(NVCC) $(GPU_ARCH) $(LFLAGS) $(INC) -o $(TARGETDIR)/$(TARGET) $^ $(LIB)
+	$(NVCC) $(GPU_ARCH) $(LFLAGS) $(INC) -o $(TARGETDIR)/$(TARGET) $^ $(LIB) #$(GPU_ARCH)
 
 #compile
 $(BUILDDIR)/%.$(OBJEXT): $(SRCDIR)/%.$(SRCEXT)
 	@echo "  compiling: " $(SRCDIR)/$*
 	@mkdir -p $(dir $@)
-	@$(NVCC) $(CXXFLAGS) $(INC) -c -o $@ $< $(LIB)
-	@$(NVCC) $(CXXFLAGS) $(INC) $(INCDEP) -MM $(SRCDIR)/$*.$(SRCEXT) > $(BUILDDIR)/$*.$(DEPEXT)
+	@$(CXX) $(CXXFLAGS) $(INC) -c -o $@ $< $(LIB)
+	@$(CXX) $(CXXFLAGS) $(INC) $(INCDEP) -MM $(SRCDIR)/$*.$(SRCEXT) > $(BUILDDIR)/$*.$(DEPEXT)
 	@cp -f $(BUILDDIR)/$*.$(DEPEXT) $(BUILDDIR)/$*.$(DEPEXT).tmp
 	@sed -e 's|.*:|$(BUILDDIR)/$*.$(OBJEXT):|' < $(BUILDDIR)/$*.$(DEPEXT).tmp > $(BUILDDIR)/$*.$(DEPEXT)
 	@sed -e 's/.*://' -e 's/\\$$//' < $(BUILDDIR)/$*.$(DEPEXT).tmp | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $(BUILDDIR)/$*.$(DEPEXT)
@@ -96,8 +96,8 @@ $(BUILDDIR)/%.$(OBJEXT): $(SRCDIR)/%.$(SRCEXT)
 $(BUILDDIR)/%.$(OBJEXT): $(SRCDIR)/%.$(CUDASRCEXT)
 	@echo "  compiling: " $(SRCDIR)/$*
 	@mkdir -p $(dir $@)
-	@$(NVCC) $(GPU_ARCH) $(NVFLAGS) -I$(CUDADIR) -c -o $@ $<
-	@$(NVCC) $(GPU_ARCH) $(NVFLAGS) -I$(CUDADIR) -MM $(SRCDIR)/$*.$(CUDASRCEXT) > $(BUILDDIR)/$*.$(DEPEXT)
+	@$(NVCC) $(GPU_ARCH) $(INC) $(NVFLAGS) -I$(CUDADIR) -c -o $@ $<
+	@$(NVCC) $(GPU_ARCH) $(INC) $(NVFLAGS) -I$(CUDADIR) -MM $(SRCDIR)/$*.$(CUDASRCEXT) > $(BUILDDIR)/$*.$(DEPEXT)
 
 #compile test files
 tester: directories

@@ -7,6 +7,7 @@
 #include "Logger.h"
 #include "KernelsWrapper.cuh"
 
+#include <mpi.h>
 #include <iostream>
 #include <stdio.h>
 #include <cuda.h>
@@ -150,6 +151,7 @@ public:
     void reset();
     float getSystemSize();
 
+    void sortArrayRadix(float *arrayToSort, float *tempArray, int *keyIn, int *keyOut, int n);
 };
 
 

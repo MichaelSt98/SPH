@@ -51,6 +51,8 @@ __global__ void sortParticlesProcKernel(float *x, float *y, float *z, float *mas
                                         float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
                                         int *procCounterTemp, int *sortArray);
 
+__global__ void copyArrayKernel(float *targetArray, float *sourceArray, int n);
+
 __global__ void sendParticlesKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                     float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,

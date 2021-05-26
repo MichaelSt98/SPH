@@ -124,6 +124,10 @@ void KernelsWrapper::sortParticlesProc(float *x, float *y, float *z, float *mass
 
 }
 
+void KernelsWrapper::copyArray(float *targetArray, float *sourceArray, int n) {
+    copyArrayKernel<<<gridSize, blockSize>>>(targetArray, sourceArray, n);
+}
+
 void KernelsWrapper::sendParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
                    int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                    float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,

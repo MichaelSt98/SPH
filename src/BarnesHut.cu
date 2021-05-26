@@ -68,14 +68,17 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     time_copyDeviceToHost = new float[parameters.iterations];
     time_all = new float [parameters.iterations];
 
-
     h_subDomainHandler = new SubDomainKeyTree();
-    h_subDomainHandler->rank = 0;
+    /*h_subDomainHandler->rank =*/
+    MPI_Comm_rank(MPI_COMM_WORLD, &h_subDomainHandler->rank); //0;
     h_subDomainHandler->range = new unsigned long[3];
     h_subDomainHandler->range[0] = 0;
     h_subDomainHandler->range[1] = 4611686018427387904UL;// + 3872UL;
     h_subDomainHandler->range[2] = KEY_MAX;
-    h_subDomainHandler->numProcesses = 2;
+    /*h_subDomainHandler->numProcesses =*/
+    MPI_Comm_size(MPI_COMM_WORLD, &h_subDomainHandler->numProcesses); //2;
+
+    printf("rank: %i  numProcesses: %i\n", h_subDomainHandler->rank, h_subDomainHandler->numProcesses);
 
     h_procCounter = new int[h_subDomainHandler->numProcesses];
 
@@ -292,9 +295,139 @@ void BarnesHut::update(int step)
                                       d_min_z, d_max_z, numParticles, numNodes, d_subDomainHandler, d_procCounter, d_procCounterTemp,
                                       d_sortArray);
 
+    //KernelHandler.sendParticles(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
+    //                            d_min_z, d_max_z, numParticles, numNodes, d_subDomainHandler, d_procCounter, d_tempArray,
+    //                            d_sortArray, d_sortArrayOut);
+
+    float elapsedTimeSorting = 0.f;
+    cudaEvent_t start_t_sorting, stop_t_sorting; // used for timing
+    cudaEventCreate(&start_t_sorting);
+    cudaEventCreate(&stop_t_sorting);
+    cudaEventRecord(start_t_sorting, 0);
+
+    sortArrayRadix(d_x, d_tempArray, d_sortArray, d_sortArrayOut, numParticles);
+    KernelHandler.copyArray(d_x, d_tempArray, numParticles);
+    sortArrayRadix(d_y, d_tempArray, d_sortArray, d_sortArrayOut, numParticles);
+    KernelHandler.copyArray(d_y, d_tempArray, numParticles);
+    sortArrayRadix(d_z, d_tempArray, d_sortArray, d_sortArrayOut, numParticles);
+    KernelHandler.copyArray(d_z, d_tempArray, numParticles);
+
+    sortArrayRadix(d_vx, d_tempArray, d_sortArray, d_sortArrayOut, numParticles);
+    KernelHandler.copyArray(d_vx, d_tempArray, numParticles);
+    sortArrayRadix(d_vy, d_tempArray, d_sortArray, d_sortArrayOut, numParticles);
+    KernelHandler.copyArray(d_vy, d_tempArray, numParticles);
+    sortArrayRadix(d_vz, d_tempArray, d_sortArray, d_sortArrayOut, numParticles);
+    KernelHandler.copyArray(d_vz, d_tempArray, numParticles);
+
+    sortArrayRadix(d_ax, d_tempArray, d_sortArray, d_sortArrayOut, numParticles);
+    KernelHandler.copyArray(d_ax, d_tempArray, numParticles);
+    sortArrayRadix(d_ay, d_tempArray, d_sortArray, d_sortArrayOut, numParticles);
+    KernelHandler.copyArray(d_ay, d_tempArray, numParticles);
+    sortArrayRadix(d_az, d_tempArray, d_sortArray, d_sortArrayOut, numParticles);
+    KernelHandler.copyArray(d_az, d_tempArray, numParticles);
+
+
+    cudaEventRecord(stop_t_sorting, 0);
+    cudaEventSynchronize(stop_t_sorting);
+    cudaEventElapsedTime(&elapsedTimeSorting, start_t_sorting, stop_t_sorting);
+    cudaEventDestroy(start_t_sorting);
+    cudaEventDestroy(stop_t_sorting);
+
+    //cudaMemcpy(h_x, d_x, 2*numParticles*sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_procCounter, d_procCounter, h_subDomainHandler->numProcesses*sizeof(int), cudaMemcpyDeviceToHost);
+
+    for (int proc=0; proc<h_subDomainHandler->numProcesses; proc++) {
+        printf("[rank %i] HOST: procCounter[%i] = %i\n", h_subDomainHandler->rank, proc, h_procCounter[proc]);
+    }
+
+    float elapsedTimeSending = 0.f;
+    cudaEvent_t start_t_sending, stop_t_sending; // used for timing
+    cudaEventCreate(&start_t_sending);
+    cudaEventCreate(&stop_t_sending);
+    cudaEventRecord(start_t_sending, 0);
+
+    //send particles
+    /*------------------------------------------------------------------------------------------------------------*/
+    int *sendLengths;
+    sendLengths = new int[h_subDomainHandler->numProcesses];
+    sendLengths[h_subDomainHandler->rank] = 0;
+    int *receiveLengths;
+    receiveLengths = new int[h_subDomainHandler->numProcesses];
+    receiveLengths[h_subDomainHandler->rank] = 0;
+
+    for (int proc=0; proc < h_subDomainHandler->numProcesses; proc++) {
+        if (proc != h_subDomainHandler->rank) {
+            sendLengths[proc] = h_procCounter[proc];
+        }
+    }
+
+    int reqCounter = 0;
+    MPI_Request reqMessageLengths[h_subDomainHandler->numProcesses-1];
+    MPI_Status statMessageLengths[h_subDomainHandler->numProcesses-1];
+
+    //send plistLengthSend and receive plistLengthReceive
+    for (int proc=0; proc < h_subDomainHandler->numProcesses; proc++) {
+        if (proc != h_subDomainHandler->rank) {
+            MPI_Isend(&sendLengths[proc], 1, MPI_INT, proc, 17, MPI_COMM_WORLD, &reqMessageLengths[reqCounter]);
+            MPI_Recv(&receiveLengths[proc], 1, MPI_INT, proc, 17, MPI_COMM_WORLD, &statMessageLengths[reqCounter]);
+            reqCounter++;
+        }
+    }
+    MPI_Waitall(h_subDomainHandler->numProcesses-1, reqMessageLengths, statMessageLengths);
+
+    for (int proc=0; proc < h_subDomainHandler->numProcesses; proc++) {
+        printf("[rank %i] reveiceLengths[%i] = %i  sendLengths[%i] = %i\n", h_subDomainHandler->rank,
+               proc, receiveLengths[proc], proc, sendLengths[proc]);
+    }
+
+    /*-------------------------------------------------------*/
+
+    //send and receive particles
+    //d_x;
+    //d_tempArray;
+
+    MPI_Request reqParticles[h_subDomainHandler->numProcesses - 1];
+    MPI_Status statParticles[h_subDomainHandler->numProcesses - 1];
+
+    reqCounter = 0;
+    int sendOffset = 0;
+    int receiveOffset = 0;
+    for (int proc=0; proc < h_subDomainHandler->numProcesses; proc++) {
+        if (proc != h_subDomainHandler->rank) {
+            if (proc == 0) {
+                MPI_Isend(&d_x[0], sendLengths[proc], MPI_FLOAT, proc, 17,
+                          MPI_COMM_WORLD, &reqParticles[reqCounter]);
+            }
+            else {
+                MPI_Isend(&d_x[h_procCounter[proc]], sendLengths[proc], MPI_FLOAT, proc, 17,
+                          MPI_COMM_WORLD, &reqParticles[reqCounter]);
+            }
+            MPI_Recv(d_tempArray + receiveOffset, receiveLengths[proc], MPI_FLOAT, proc, 17,
+                     MPI_COMM_WORLD, &statParticles[reqCounter]);
+            receiveOffset += receiveLengths[proc];
+            reqCounter++;
+        }
+    }
+    MPI_Waitall(h_subDomainHandler->numProcesses-1, reqParticles, statParticles);
+
+    delete[] sendLengths;
+    delete[] receiveLengths;
+    /*------------------------------------------------------------------------------------------------------------*/
+
+    cudaEventRecord(stop_t_sending, 0);
+    cudaEventSynchronize(stop_t_sending);
+    cudaEventElapsedTime(&elapsedTimeSending, start_t_sending, stop_t_sending);
+    cudaEventDestroy(start_t_sending);
+    cudaEventDestroy(stop_t_sending);
+
+    printf("[rank %i] Finished sending particles ... time: %f ms\n", h_subDomainHandler->rank, elapsedTimeSending);
+
+
     KernelHandler.sendParticles(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
-                                d_min_z, d_max_z, numParticles, numNodes, d_subDomainHandler, d_procCounter, d_tempArray,
-                                d_sortArray, d_sortArrayOut);
+                                d_min_z, d_max_z, numParticles, numNodes, d_subDomainHandler, d_procCounter, d_tempArray, d_sortArray, d_sortArrayOut);
+
+
+    printf("elapsed time for sorting: %f ms\n", elapsedTimeSorting);
 
     KernelHandler.createDomainList(d_subDomainHandler, 21, d_domainListKeys, d_domainListLevels, d_domainListIndex);
     //KernelHandler.buildDomainTree(d_domainListIndex, d_domainListKeys, d_domainListLevels, d_count, d_start, d_child,
@@ -477,22 +610,33 @@ void BarnesHut::diskModel(float *mass, float *x, float* y, float* z, float *x_ve
         float r = distribution(generator);
 
         // set mass and position of particle
-        if (i==0) {
-            mass[i] = solarMass; //100000;
-            x[i] = 0;
-            y[i] = 0;
-            z[i] = 0;
+        if (h_subDomainHandler->rank == 0) {
+            if (i == 0) {
+                mass[i] = solarMass; //100000;
+                x[i] = 0;
+                y[i] = 0;
+                z[i] = 0;
+            } else {
+                mass[i] = 2 * solarMass / numParticles;
+                x[i] = r * cos(theta);
+                y[i] = r * sin(theta);
+
+                if (i % 2 == 0) {
+                    z[i] = i * 1e-7;
+                } else {
+                    z[i] = i * -1e-7;
+                }
+            }
         }
         else {
-            mass[i] = 2*solarMass/numParticles;
-            x[i] = r*cos(theta);
-            y[i] = r*sin(theta);
+            mass[i] = 2 * solarMass / numParticles;
+            x[i] = (r + h_subDomainHandler->rank * 1.1e-1) * cos(theta);
+            y[i] = (r + h_subDomainHandler->rank * 1.3e-1) * sin(theta);
 
-            if (i%2 == 0) {
-                z[i] = i*1e-7;
-            }
-            else {
-                z[i] = i*-1e-7;
+            if (i % 2 == 0) {
+                z[i] = i * 1e-7 * h_subDomainHandler->rank;
+            } else {
+                z[i] = i * -1e-7 * h_subDomainHandler->rank;
             }
         }
 
@@ -551,6 +695,20 @@ float BarnesHut::getSystemSize() {
     }
 
     return systemSize;
+
+}
+
+void BarnesHut::sortArrayRadix(float *arrayToSort, float *tempArray, int *keyIn, int *keyOut, int n) {
+    // Determine temporary device storage requirements
+    void     *d_temp_storage = NULL;
+    size_t   temp_storage_bytes = 0;
+    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
+                                    keyIn, keyOut, arrayToSort, tempArray, n);
+    // Allocate temporary storage
+    cudaMalloc(&d_temp_storage, temp_storage_bytes);
+    // Run sorting operation
+    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
+                                    keyIn, keyOut, arrayToSort, tempArray, n);
 
 }
 
