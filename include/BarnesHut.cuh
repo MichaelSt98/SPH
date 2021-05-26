@@ -78,8 +78,11 @@ private:
     int *d_domainListIndex;
 
     float *d_tempArray;
+    int *d_sortArray;
+    int *d_sortArrayOut;
 
     int *d_procCounter;
+    int *d_procCounterTemp;
 
     float *d_x;
     float *d_y;

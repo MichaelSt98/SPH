@@ -14,6 +14,7 @@
 #include "Constants.h"
 #include "SubDomainKeyTree.cuh"
 
+#include "cub/cub.cuh"
 #include <iostream>
 #include <stdio.h>
 #include <cuda.h>
@@ -25,7 +26,7 @@
  */
 __global__ void resetArraysKernel(int *mutex, float *x, float *y, float *z, float *mass, int *count, int *start,
                                   int *sorted, int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                                  float *minZ, float *maxZ, int n, int m, int *procCounter);
+                                  float *minZ, float *maxZ, int n, int m, int *procCounter, int *procCounterTemp);
 
 __global__ void resetArraysParallelKernel(int *domainListIndex, unsigned long *domainListKeys,
                                           unsigned long *domainListIndices, int *domainListLevels,
@@ -42,12 +43,18 @@ __global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domai
 
 __global__ void particlesPerProcessKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                                    float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter);
+                                    float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
+                                    int *procCounterTemp);
+
+__global__ void sortParticlesProcKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
+                                        int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                        float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
+                                        int *procCounterTemp, int *sortArray);
 
 __global__ void sendParticlesKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                     float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
-                                    float *tempArray);
+                                    float *tempArray, int *sortArray, int *sortArrayOut);
 
 /**
  * Kernel 2: hierarchically subdivides the root cells

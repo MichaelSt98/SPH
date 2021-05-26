@@ -27,7 +27,7 @@ public:
 
     float resetArrays(int *mutex, float *x, float *y, float *z, float *mass, int *count,
                       int *start, int *sorted, int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                      float *minZ, float *maxZ, int n, int m, int *procCounter, bool timing=false);
+                      float *minZ, float *maxZ, int n, int m, int *procCounter, int *procCounterTemp, bool timing=false);
 
     void resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,  unsigned long *domainListIndices,
                              int *domainListLevels, float *tempArray, int n, int m);
@@ -40,12 +40,18 @@ public:
 
     void particlesPerProcess(float *x, float *y, float *z, float *mass, int *count, int *start,
                                              int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                                             float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter);
+                                             float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s,
+                                             int *procCounter, int *procCounterTemp);
+
+    void sortParticlesProc(float *x, float *y, float *z, float *mass, int *count, int *start,
+                                            int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                            float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s,
+                                            int *procCounter, int *procCounterTemp, int *sortArray);
 
     void sendParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
                        int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                        float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
-                       float *tempArray);
+                       float *tempArray, int *sortArray, int *sortArrayOut);
 
     float buildTree(float *x, float *y, float *z, float *mass, int *count, int *start,
                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,

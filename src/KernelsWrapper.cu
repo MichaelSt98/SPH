@@ -27,7 +27,7 @@ KernelsWrapper::KernelsWrapper(SimulationParameters p) {
 
 float KernelsWrapper::resetArrays(int *mutex, float *x, float *y, float *z, float *mass, int *count,
                           int *start, int *sorted, int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                          float *minZ, float *maxZ, int n, int m, int *procCounter, bool timing) {
+                          float *minZ, float *maxZ, int n, int m, int *procCounter, int *procCounterTemp, bool timing) {
 
     float elapsedTime = 0.f;
     if (timing) {
@@ -37,7 +37,7 @@ float KernelsWrapper::resetArrays(int *mutex, float *x, float *y, float *z, floa
         cudaEventRecord(start_t, 0);
 
         resetArraysKernel<<< gridSize, blockSize >>>(mutex, x, y, z, mass, count, start, sorted, child, index,
-                minX, maxX, minY, maxY, minZ, maxZ, n, m, procCounter);
+                minX, maxX, minY, maxY, minZ, maxZ, n, m, procCounter, procCounterTemp);
 
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
@@ -47,7 +47,8 @@ float KernelsWrapper::resetArrays(int *mutex, float *x, float *y, float *z, floa
     }
     else {
         resetArraysKernel<<< gridSize, blockSize >>>(mutex, x, y, z, mass, count, start, sorted, child, index,
-                                                     minX, maxX, minY, maxY, minZ, maxZ, n, m, procCounter);
+                                                     minX, maxX, minY, maxY, minZ, maxZ, n, m, procCounter,
+                                                     procCounterTemp);
     }
     return elapsedTime;
 
@@ -103,21 +104,48 @@ void KernelsWrapper::treeInfo(float *x, float *y, float *z, float *mass, int *co
 
 void KernelsWrapper::particlesPerProcess(float *x, float *y, float *z, float *mass, int *count, int *start,
                                    int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                                   float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter) {
+                                   float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
+                                   int *procCounterTemp) {
 
     particlesPerProcessKernel<<< gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
-                                                   minX, maxX, minY, maxY, minZ, maxZ, n, m, s, procCounter);
+                                                   minX, maxX, minY, maxY, minZ, maxZ, n, m, s, procCounter,
+                                                   procCounterTemp);
+
+}
+
+void KernelsWrapper::sortParticlesProc(float *x, float *y, float *z, float *mass, int *count, int *start,
+                       int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                       float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
+                       int *procCounterTemp, int *sortArray) {
+
+    sortParticlesProcKernel<<< gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
+                                                         minX, maxX, minY, maxY, minZ, maxZ, n, m, s,
+                                                         procCounter, procCounterTemp, sortArray);
 
 }
 
 void KernelsWrapper::sendParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
                    int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                    float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
-                   float *tempArray) {
+                   float *tempArray, int *sortArray, int *sortArrayOut) {
 
-    sendParticlesKernel<<< gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
+    float elapsedTime = 0.f;
+    cudaEvent_t start_t, stop_t; // used for timing
+    cudaEventCreate(&start_t);
+    cudaEventCreate(&stop_t);
+    cudaEventRecord(start_t, 0);
+
+    sendParticlesKernel<<< 1, 1/*gridSize, blockSize*/ >>>(x, y, z, mass, count, start, child, index,
                                                    minX, maxX, minY, maxY, minZ, maxZ, n, m, s, procCounter,
-                                                   tempArray);
+                                                   tempArray, sortArray, sortArrayOut);
+
+    cudaEventRecord(stop_t, 0);
+    cudaEventSynchronize(stop_t);
+    cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+    cudaEventDestroy(start_t);
+    cudaEventDestroy(stop_t);
+
+    printf("Elapsed time for sorting: %f\n", elapsedTime);
 
 }
 

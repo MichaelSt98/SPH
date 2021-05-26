@@ -39,8 +39,6 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
         h_domainListLevels[i] = -1;
     }
 
-    h_procCounter = new int[2];
-
     h_x = new float[numNodes];
     h_y = new float[numNodes];
     h_z = new float[numNodes];
@@ -75,9 +73,11 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     h_subDomainHandler->rank = 0;
     h_subDomainHandler->range = new unsigned long[3];
     h_subDomainHandler->range[0] = 0;
-    h_subDomainHandler->range[1] = 4611686018427387904UL + 3872UL;
+    h_subDomainHandler->range[1] = 4611686018427387904UL;// + 3872UL;
     h_subDomainHandler->range[2] = KEY_MAX;
     h_subDomainHandler->numProcesses = 2;
+
+    h_procCounter = new int[h_subDomainHandler->numProcesses];
 
     // allocate device data
     gpuErrorcheck(cudaMalloc((void**)&d_min_x, sizeof(float)));
@@ -102,8 +102,11 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     gpuErrorcheck(cudaMalloc((void**)&d_domainListIndex, sizeof(int)));
 
     gpuErrorcheck(cudaMalloc((void**)&d_tempArray, numParticles*sizeof(float)));
+    gpuErrorcheck(cudaMalloc((void**)&d_sortArray, numParticles*sizeof(int)));
+    gpuErrorcheck(cudaMalloc((void**)&d_sortArrayOut, numParticles*sizeof(int)));
 
-    gpuErrorcheck(cudaMalloc((void**)&d_procCounter, 2*sizeof(int)));
+    gpuErrorcheck(cudaMalloc((void**)&d_procCounter, h_subDomainHandler->numProcesses*sizeof(int)));
+    gpuErrorcheck(cudaMalloc((void**)&d_procCounterTemp, h_subDomainHandler->numProcesses*sizeof(int)));
 
     gpuErrorcheck(cudaMalloc((void**)&d_x, numNodes*sizeof(float)));
     gpuErrorcheck(cudaMalloc((void**)&d_y, numNodes*sizeof(float)));
@@ -263,7 +266,8 @@ void BarnesHut::update(int step)
     float elapsedTimeKernel;
 
     elapsedTimeKernel = KernelHandler.resetArrays(d_mutex, d_x, d_y, d_z, d_mass, d_count, d_start, d_sorted, d_child, d_index,
-                        d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z, numParticles, numNodes, d_procCounter, timeKernels);
+                        d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z, numParticles, numNodes,
+                        d_procCounter, d_procCounterTemp,timeKernels);
 
     KernelHandler.resetArraysParallel(d_domainListIndex, d_domainListKeys, d_domainListIndices,
                                       d_domainListLevels, d_tempArray, numParticles, numNodes);
@@ -282,10 +286,15 @@ void BarnesHut::update(int step)
     }
 
     KernelHandler.particlesPerProcess(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
-                                      d_min_z, d_max_z, numParticles, numNodes, d_subDomainHandler, d_procCounter);
+                                      d_min_z, d_max_z, numParticles, numNodes, d_subDomainHandler, d_procCounter, d_procCounterTemp);
 
-    //KernelHandler.sendParticles(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
-      //                          d_min_z, d_max_z, numParticles, numNodes, d_subDomainHandler, d_procCounter);
+    KernelHandler.sortParticlesProc(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
+                                      d_min_z, d_max_z, numParticles, numNodes, d_subDomainHandler, d_procCounter, d_procCounterTemp,
+                                      d_sortArray);
+
+    KernelHandler.sendParticles(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
+                                d_min_z, d_max_z, numParticles, numNodes, d_subDomainHandler, d_procCounter, d_tempArray,
+                                d_sortArray, d_sortArrayOut);
 
     KernelHandler.createDomainList(d_subDomainHandler, 21, d_domainListKeys, d_domainListLevels, d_domainListIndex);
     //KernelHandler.buildDomainTree(d_domainListIndex, d_domainListKeys, d_domainListLevels, d_count, d_start, d_child,
