@@ -15,10 +15,30 @@
 #include <string.h>
 #include <random>
 
+#define ENV_LOCAL_RANK "OMPI_COMM_WORLD_LOCAL_RANK"
+
+void SetDeviceBeforeInit()
+{
+    char * localRankStr = NULL;
+    int rank = 0, devCount = 2;
+
+    // We extract the local rank initialization using an environment variable
+    if ((localRankStr = getenv(ENV_LOCAL_RANK)) != NULL)
+    {
+        rank = atoi(localRankStr);
+    }
+    Logger(INFO) << "devCount: " << devCount << " | rank: " << rank
+    << " | setting device: " << rank % devCount;
+    SafeCudaCall(cudaGetDeviceCount(&devCount));
+    SafeCudaCall(cudaSetDevice(rank % devCount));
+}
+
 structlog LOGCFG = {};
 
 int main(int argc, char** argv)
 {
+
+    //SetDeviceBeforeInit();
 
     MPI_Init(&argc, &argv);
 
@@ -74,7 +94,7 @@ int main(int argc, char** argv)
         parameters.timeKernels = true;
 
         LOGCFG.headers = true;
-        if (result.count("verbosity")) {
+        /*if (result.count("verbosity")) {
             int count = (int) result.count("verbosity");
             //std::cout << "counter: " << count << std::endl;
             if (count == 1) {
@@ -86,13 +106,16 @@ int main(int argc, char** argv)
             } else {
                 LOGCFG.level = DEBUG;
             }
-        }
+        }*/
+        LOGCFG.level = DEBUG;
+        LOGCFG.myrank = rank;
+        //LOGCFG.outputRank = 0;
 
-        Logger(DEBUG) << "DEBUG output";
-        Logger(WARN) << "WARN output";
-        Logger(ERROR) << "ERROR output";
-        Logger(INFO) << "INFO output";
-        Logger(TIME) << "TIME output";
+        //Logger(DEBUG) << "DEBUG output";
+        //Logger(WARN) << "WARN output";
+        //Logger(ERROR) << "ERROR output";
+        //Logger(INFO) << "INFO output";
+        //Logger(TIME) << "TIME output";
 
         char *image = new char[WIDTH * HEIGHT * 3];
         double *hdImage = new double[WIDTH * HEIGHT * 3];

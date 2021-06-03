@@ -1,11 +1,13 @@
+//
+// Created by Michael Staneker on 18.12.20.
+//
+
 #include "../include/Logger.h"
 
 Color::Modifier::Modifier(Code pCode) : code(pCode) {}
 
-namespace Color {
-    std::ostream &operator<<(std::ostream &os, const Modifier &mod) {
-        return os << "\033[" << mod.code << "m";
-    }
+std::ostream& Color::operator<<(std::ostream& os, const Color::Modifier& mod) {
+    return os << "\033[" << mod.code << "m";
 }
 
 Logger::Logger(typelog type) {
@@ -27,6 +29,10 @@ Logger::~Logger() {
 
 inline std::string Logger::getLabel(typelog type) {
     std::string label;
+    std::string rankLbl = "";
+    if (LOGCFG.myrank >= 0){
+        rankLbl = "(" + std::to_string(LOGCFG.myrank) + ")";
+    }
     switch(type) {
         case DEBUG: label = "[DEBUG] "; break;
         case INFO:  label = "[INFO ] "; break;
@@ -34,7 +40,7 @@ inline std::string Logger::getLabel(typelog type) {
         case ERROR: label = "[ERROR] "; break;
         case TIME:  label = "[TIME ] "; break;
     }
-    return label;
+    return rankLbl + label;
 }
 
 inline Color::Modifier Logger::getColor(typelog type) {

@@ -1,0 +1,124 @@
+
+void createDomainList(TreeNode *t, int level, keytype k, SubDomainKeyTree *s) {
+    t->node = domainList;
+    int p1 = key2proc(k, s);
+    int p2 = key2proc(k | ~(~0L << DIM*(maxlevel-level)),s);
+    if (p1 != p2) {
+        for (int i = 0; i < POWDIM; i++) {
+            t->son[i] = (TreeNode *) calloc(1, sizeof(TreeNode));
+            createDomainList(t->son[i], level + 1,  (keytype)(k | ((keytype)i << (DIM*(maxlevel-level-1)))), s);
+        }
+    }
+}
+
+__global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels,
+                                      int *count, int *start, int *child, int *index, int n, int m) {
+
+
+    int domainListIndices[512];
+    int domainListCounter = 0;
+
+    char keyAsChar[21 * 2 + 3];
+    int path[21];
+
+//    printf("Index: %i\n", *domainListIndex);
+//    for (int i = 0; i < *domainListIndex; i++) {
+//        key2Char(domainListKeys[i], 21, keyAsChar);
+//        printf("domainListKeys[%i] = %lu = %s (level: %i)\n", i, domainListKeys[i], keyAsChar, domainListLevels[i]);
+//        for (int j = 0; j < domainListLevels[i]; j++) {
+//            path[j] = (int) (domainListKeys[i] >> (21 * 3 - 3 * (j + 1)) & (int) 7);
+//            printf("\tson: %i\n", path[j]);
+//        }
+//    }
+
+    atomicSub(index, 1);
+    int pathIndex;
+
+    domainListIndices[domainListCounter] = n; //+1;
+    domainListCounter++;
+
+    //TODO: needed?
+    //for (int i=0; i<8; i++) {
+    //    child[8 * (*index) + i] = i;
+    //}
+    //count[*index] += 8;
+
+    for (int i=0; i<8; i++) {
+        child[i] = (n + i /* + 1*/) * (-1);
+    }
+
+    int counter;
+    for (int i=1; i < *domainListIndex; i++) {
+        for (int j = 0; j < domainListLevels[i]; j++) {
+            path[j] = (int) (domainListKeys[i] >> (21 * 3 - 3 * (j + 1)) & (int) 7);
+            //printf("\tson: %i\n", path[j]);
+            //child[8 * (n + i) + j] = n + i;
+        }
+        pathIndex = n;
+        counter = 0;
+        while (counter < domainListLevels[i]) {
+            if (child[8*pathIndex + path[counter]] == -1 /*< 8*/) {
+
+                //atomicAdd(index, 1); // here or
+                //child[8*pathIndex + path[counter]] = *index;
+                atomicAdd(index, 1); //or here?
+                //for (int i=0; i<8; i++) {
+                //    child[8 * (*index) + i] = i;
+                //}
+                if (child[path[counter]] == -1) {
+                    //child[path[counter]] = *index; //*index - 1; //n + path[counter]; //n; // + path[counter]; //*index
+                    //count[pathIndex] = 1;
+                    //for (int i=0; i<8; i++) {
+                    //    child[8 * (*index) + i] = i;
+                    //    printf("child[8 * (*index) + %i] = %i\n", i, child[8 * (*index) + i]);
+                    //    printf("child[%i] = %i\n", i, child[i]);
+                    //    //child[8 * (*index) + i] = i;
+                    //}
+                }
+                //atomicAdd(index, 1); //here?
+                //for (int i=0; i<8; i++) {
+                //    child[8 * (*index) + i] = i;
+                //}
+                //atomicAdd(&count[pathIndex], 1); //TODO: needed?
+                //count[*index] += count[pathIndex]; //TODO: needed
+                //start[*index] = -1; //TODO: needed?
+                domainListIndices[domainListCounter] = *index;
+                domainListCounter++;
+            //} else {
+                //printf("[%i] already existing: %i\n", i, path[counter]);
+            }
+            //atomicAdd(&count[pathIndex], 1); //TODO: needed?
+            pathIndex = child[8*pathIndex + path[counter]]; //*index;
+            //printf("pathIndex: %i\n", pathIndex);
+            counter++;
+        }
+    }
+
+    //*index = n;
+    //atomicAdd(index, 1);
+    printf("index after domain list tree creation: %i\n", *index);
+
+    //for (int i=0; i<domainListCounter; i++) {
+    //    printf("domainListIndices[%i]: %i\n", i, domainListIndices[i]);
+    //}
+
+    /*printf("child[8*n] = %i\n", child[8*n]);
+    printf("child[8*n + 1] = %i\n", child[8*n + 1]);
+    printf("child[8*(n+1)] = %i\n", child[8*(n+1)]);
+    for (int i=0; i<8; i++) {
+        printf("child[%i] = %i\n", i, child[i]);
+    }*/
+
+    for (int i=0; i<8; i++) {
+        printf("child[%i] = %i (count = %i)\n", i, child[i], count[i]);
+    }
+    int indexToOutput = n;
+    for (int i=0; i<8; i++) {
+        printf("child[8 * %i + %i] = %i (count = %i)\n", indexToOutput, i, child[8*indexToOutput + i], count[indexToOutput]);
+    }
+    indexToOutput = n+1;
+    for (int i=0; i<8; i++) {
+        printf("child[8 * %i + %i] = %i (count = %i)\n", indexToOutput, i, child[8*indexToOutput + i], count[indexToOutput]);
+    }
+
+}

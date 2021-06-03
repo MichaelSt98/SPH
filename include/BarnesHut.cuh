@@ -11,12 +11,17 @@
 #include <iostream>
 #include <stdio.h>
 #include <cuda.h>
+#include <cuda_runtime.h>
 #include <climits> // for ulong_max
 //#define KEY_MAX ULONG_MAX
 
+#define TESTING 0
+
+#define SafeCudaCall(call) CheckCudaCall(call, #call, __FILE__, __LINE__)
 #define gpuErrorcheck(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
 void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true);
+void CheckCudaCall(cudaError_t command, const char * commandName, const char * fileName, int line);
 
 class BarnesHut {
 
@@ -27,6 +32,7 @@ private:
 
     int step;
     int numParticles;
+    int numParticlesLocal;
     int numNodes;
 
     float *h_min_x;
@@ -45,6 +51,7 @@ private:
 
     int *h_procCounter;
 
+    //changed to public ...
     /*float *h_x;
     float *h_y;
     float *h_z;
@@ -150,8 +157,10 @@ public:
     void update(int step);
     void reset();
     float getSystemSize();
+    void globalizeBoundingBox();
 
     void sortArrayRadix(float *arrayToSort, float *tempArray, int *keyIn, int *keyOut, int n);
+    void gatherParticles(float *xAll, float *yAll, float *zAll);
 };
 
 

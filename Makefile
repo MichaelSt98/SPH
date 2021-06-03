@@ -1,6 +1,6 @@
 #Compiler/Linker
 CXX            := mpic++#g++
-NVCC           := /usr/local/cuda-10.1/bin/nvcc #nvcc
+NVCC           := nvcc
 
 #Target binary
 TARGET         := runner

@@ -25,70 +25,76 @@ public:
     KernelsWrapper();
     KernelsWrapper(SimulationParameters p);
 
-    float resetArrays(int *mutex, float *x, float *y, float *z, float *mass, int *count,
-                      int *start, int *sorted, int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                      float *minZ, float *maxZ, int n, int m, int *procCounter, int *procCounterTemp, bool timing=false);
+    float resetArrays(int *mutex, float *x, float *y, float *z, float *mass, int *count, int *start, int *sorted,
+                      int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                      float *minZ, float *maxZ, int n, int m, int *procCounter, int *procCounterTemp,
+                      bool timing=false);
 
     void resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,  unsigned long *domainListIndices,
                              int *domainListLevels, float *tempArray, int n, int m);
 
-    float computeBoundingBox(int *mutex, float *x, float *y, float *z, float *minX,
-                             float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int n, bool timing=false);
+    float computeBoundingBox(int *mutex, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
+                             float *maxY, float *minZ, float *maxZ, int n, bool timing=false);
 
-    void buildDomainTree(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels,
-                                          int *count, int *start, int *child, int *index, int n, int m);
+    float buildDomainTree(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels, int *count,
+                          int *start, int *child, int *index, int n, int m, bool timing=false);
 
-    void particlesPerProcess(float *x, float *y, float *z, float *mass, int *count, int *start,
-                                             int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                                             float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s,
-                                             int *procCounter, int *procCounterTemp);
+    float particlesPerProcess(float *x, float *y, float *z, float *mass, int *count, int *start, int *child,
+                              int *index, float *minX, float *maxX, float *minY, float *maxY, float *minZ,
+                              float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
+                              int *procCounterTemp, bool timing=false);
 
-    void sortParticlesProc(float *x, float *y, float *z, float *mass, int *count, int *start,
-                                            int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                                            float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s,
-                                            int *procCounter, int *procCounterTemp, int *sortArray);
+    float sortParticlesProc(float *x, float *y, float *z, float *mass, int *count, int *start, int *child, int *index,
+                            float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int n,
+                            int m, SubDomainKeyTree *s, int *procCounter, int *procCounterTemp, int *sortArray,
+                            bool timing=false);
 
-    void copyArray(float *targetArray, float *sourceArray, int n);
+    float copyArray(float *targetArray, float *sourceArray, int n, bool timing=false);
 
-    void sendParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
-                       int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                       float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
-                       float *tempArray, int *sortArray, int *sortArrayOut);
+    float resetFloatArray(float *array, float value, int n, bool timing=false);
 
-    float buildTree(float *x, float *y, float *z, float *mass, int *count, int *start,
-                    int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                    float *minZ, float *maxZ, int n, int m, bool timing=false);
+    float reorderArray(float *array, float *tempArray, SubDomainKeyTree *s, int *procCounter, int *receiveLengths,
+                       bool timing=false);
 
-    void treeInfo(float *x, float *y, float *z, float *mass, int *count, int *start,
-                                  int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                                  float *minZ, float *maxZ, int n, int m, int *procCounter);
+    float sendParticles(float *x, float *y, float *z, float *mass, int *count, int *start, int *child, int *index,
+                        float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int n, int m,
+                        SubDomainKeyTree *s, int *procCounter, float *tempArray, int *sortArray, int *sortArrayOut,
+                        bool timing=false);
 
-    void getParticleKey(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
-                                   float *minZ, float *maxZ, unsigned long *key, int maxLevel, int n,
-                                   SubDomainKeyTree *s);
+    float buildTree(float *x, float *y, float *z, float *mass, int *count, int *start, int *child, int *index,
+                    float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int n, int m,
+                    bool timing=false);
 
-    void traverseIterative(float *x, float *y, float *z, float *mass, int *child, int n, int m,
-                           SubDomainKeyTree *s, int maxLevel);
+    float treeInfo(float *x, float *y, float *z, float *mass, int *count, int *start, int *child, int *index,
+                   float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int n, int m,
+                   int *procCounter, SubDomainKeyTree *s, int *sortArray, int *sortArrayOut, bool timing=false);
 
-    void createDomainList(float *x, float *y, float *z, float *mass, int *child, int n,
-                     SubDomainKeyTree *s, int maxLevel);
+    float getParticleKey(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY, float *minZ,
+                         float *maxZ, unsigned long *key, int maxLevel, int n, SubDomainKeyTree *s, bool timing=false);
+
+    float traverseIterative(float *x, float *y, float *z, float *mass, int *child, int n, int m, SubDomainKeyTree *s,
+                            int maxLevel, bool timing=false);
+
+    void createDomainList(float *x, float *y, float *z, float *mass, int *child, int n, SubDomainKeyTree *s,
+                          int maxLevel);
 
     /*void createDomainList(float *x, float *y, float *z, float *mass, float *minX, float *maxX,
                                                 float *minY, float *maxY, float *minZ, float *maxZ, int *child, int n,
                                                 SubDomainKeyTree *s, int maxLevel);*/
 
-    void createDomainList(SubDomainKeyTree *s, int maxLevel, unsigned long *domainListKeys, int *levels, int *index);
+    float createDomainList(SubDomainKeyTree *s, int maxLevel, unsigned long *domainListKeys, int *levels, int *index,
+                           bool timing=false);
 
     float centreOfMass(float *x, float *y, float *z, float *mass, int *index, int n, bool timing=false);
 
     float sort(int *count, int *start, int *sorted, int *child, int *index, int n, bool timing=false);
 
-    float computeForces(float *x, float *y, float *z, float *vx, float *vy, float *vz,
-                        float *ax, float *ay, float *az, float *mass, int *sorted, int *child,
-                        float *minX, float *maxX, int n, float g, bool timing=false);
+    float computeForces(float *x, float *y, float *z, float *vx, float *vy, float *vz, float *ax, float *ay, float *az,
+                        float *mass, int *sorted, int *child, float *minX, float *maxX, int n, float g,
+                        bool timing=false);
 
-    float update(float *x, float *y, float *z, float *vx, float *vy, float *vz,
-                 float *ax, float *ay, float *az, int n, float dt, float d, bool timing=false);
+    float update(float *x, float *y, float *z, float *vx, float *vy, float *vz, float *ax, float *ay, float *az, int n,
+                 float dt, float d, bool timing=false);
 
 };
 

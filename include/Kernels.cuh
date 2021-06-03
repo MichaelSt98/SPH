@@ -53,6 +53,11 @@ __global__ void sortParticlesProcKernel(float *x, float *y, float *z, float *mas
 
 __global__ void copyArrayKernel(float *targetArray, float *sourceArray, int n);
 
+__global__ void resetFloatArrayKernel(float *array, float value, int n);
+
+/*__global__ void reorderArrayKernel(float *array, float *tempArray, SubDomainKeyTree *s,
+                                   int *procCounter, int *receiveLengths);*/
+
 __global__ void sendParticlesKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                     float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
@@ -67,7 +72,8 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
 
 __global__ void treeInfoKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                               float *minZ, float *maxZ, int n, int m, int *procCounter);
+                               float *minZ, float *maxZ, int n, int m, int *procCounter, SubDomainKeyTree *s,
+                               int *sortArray, int *sortArrayOut);
 
 __device__ void key2Char(unsigned long key, int maxLevel, char *keyAsChar);
 

@@ -191,7 +191,7 @@ __global__ void particlesPerProcessKernel(float *x, float *y, float *z, float *m
     while ((bodyIndex + offset) < n) {
 
         key = getParticleKeyPerParticle(x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset],
-                                        minX, maxX, minY, maxY, minY, maxY, 21);
+                                        minX, maxX, minY, maxY, minZ, maxZ, 21);
 
         proc = key2proc(key, s);
 
@@ -224,70 +224,28 @@ __global__ void sortParticlesProcKernel(float *x, float *y, float *z, float *mas
     while ((bodyIndex + offset) < n) {
 
         key = getParticleKeyPerParticle(x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset],
-                                        minX, maxX, minY, maxY, minY, maxY, 21);
-
+                                        minX, maxX, minY, maxY, minZ, maxZ, 21);
         proc = key2proc(key, s);
 
         counter = atomicAdd(&procCounterTemp[proc], 1);
 
         if (proc > 0) {
-            sortArray[bodyIndex + offset] = proc * procCounter[proc-1] + counter;
+            sortArray[bodyIndex + offset] = procCounter[proc-1] + counter;
         }
         else {
             sortArray[bodyIndex + offset] = counter;
         }
 
-        if ((bodyIndex + offset) % 10000 == 0) {
-            //printf("counter: %i  ", counter);
-            //printf("counter: %i  proc = %i  sortArray[%i] = %i\n", counter, proc, bodyIndex+offset, sortArray[bodyIndex + offset]);
-        }
 
-        if (sortArray[bodyIndex + offset] == (n-1)) {
-            printf("sortArray = n - 1\n");
-        }
-
-        /*if (proc == 0) { atomicAdd(&procCounter[proc], 1); }
-        else if (proc == 1) { atomicAdd(&procCounter[proc], 1); }
-        else { printf("WTF?: proc=%i\n", proc); }*/
+        //if ((bodyIndex + offset) == 200000) {
+        //    printf("proc = %i,  sortArray[%i] = %i   x = (%f, %f, %f) m = %f  (procCounter = (%i, %i),  counter = %i)\n", proc, 200000, sortArray[200000], x[200000],
+        //           y[200000], z[200000], mass[200000], procCounter[0], procCounter[1], counter);
+        //}
 
         offset += stride;
 
     }
 }
-
-/*
- thrust::device_vector<int>  indices(N);
-thrust::sequence(indices.begin(),indices.end());
-thrust::sort_by_key(keys.begin(),keys.end(),indices.begin());
-
-thrust::device_vector<int> temp(N);
-thrust::device_vector<int> *sorted = &temp;
-thrust::device_vector<int> *pa_01 = &a_01;
-thrust::device_vector<int> *pa_02 = &a_02;
-...
-thrust::device_vector<int> *pa_20 = &a_20;
-
-thrust::gather(indices.begin(), indices.end(), *pa_01, *sorted);
-pa_01 = sorted; sorted = &a_01;
-thrust::gather(indices.begin(), indices.end(), *pa_02, *sorted);
-pa_02 = sorted; sorted = &a_02;
-...
-thrust::gather(indices.begin(), indices.end(), *pa_20, *sorted);
-pa_20 = sorted; sorted = &a_20;
- */
-
-/*__device__ void sortArrayKernel(float *arrayToSort, float *tempArray, int *keyIn, int *keyOut, int n) {
-    // Determine temporary device storage requirements
-    void     *d_temp_storage = NULL;
-    size_t   temp_storage_bytes = 0;
-    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
-                                    keyIn, keyOut, arrayToSort, tempArray, n);
-    // Allocate temporary storage
-    cudaMalloc(&d_temp_storage, temp_storage_bytes);
-    // Run sorting operation
-    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
-                                    keyIn, keyOut, arrayToSort, tempArray, n);
-}*/
 
 __global__ void copyArrayKernel(float *targetArray, float *sourceArray, int n) {
     int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
@@ -295,12 +253,36 @@ __global__ void copyArrayKernel(float *targetArray, float *sourceArray, int n) {
 
     int offset = 0;
 
-    while ((bodyIndex + offset) < 0) {
+    while ((bodyIndex + offset) < n) {
         targetArray[bodyIndex + offset] = sourceArray[bodyIndex + offset];
 
         offset += stride;
     }
 }
+
+__global__ void resetFloatArrayKernel(float *array, float value, int n) {
+    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+
+    int offset = 0;
+
+    while ((bodyIndex + offset) < n) {
+        array[bodyIndex + offset] = value;
+
+        offset += stride;
+    }
+
+
+}
+
+/*__global__ void reorderArrayKernel(float *array, float *tempArray, SubDomainKeyTree *s,
+                                   int *procCounter, int *receiveLengths) {
+
+    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+
+    int offset = 0;
+}*/
 
 __global__ void sendParticlesKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                 int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
@@ -308,22 +290,19 @@ __global__ void sendParticlesKernel(float *x, float *y, float *z, float *mass, i
                                 float *tempArray, int *sortArray, int *sortArrayOut) {
 
 
-    // Determine temporary device storage requirements
-    /*void     *d_temp_storage = NULL;
-    size_t   temp_storage_bytes = 0;
-    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
-                                    sortArray, sortArrayOut, x, tempArray, n);
-    // Allocate temporary storage
-    cudaMalloc(&d_temp_storage, temp_storage_bytes);
-    // Run sorting operation
-    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
-                                    sortArray, sortArrayOut, x, tempArray, n);*/
-
-    for (int i=0; i<5; i++) {
-        //printf("x[%i] = %f  out[%i] = %f\n", i, x[i], i, tempArray[i]);
-        printf("key_in[%i] = %i  key_out[%i] = %i\n", i, sortArray[i], i, sortArrayOut[i]);
-        printf("key_in[%i] = %i  key_out[%i] = %i\n", n-i, sortArray[n-i], n-i, sortArrayOut[n-i]);
+    for (int proc=0; proc<s->numProcesses; proc++) {
+        printf("[rank %i] procCounter[%i] = %i\n", s->rank, proc, procCounter[proc]);
     }
+
+    for (int i=10000; i<10005; i++) {
+        printf("[rank %i] tempArray[%i] = %f\n", s->rank, i, tempArray[i]);
+        printf("[rank %i] x[%i] = %f\n", s->rank, i, x[i]);
+    }
+    //for (int i=0; i<5; i++) {
+        //printf("x[%i] = %f  out[%i] = %f\n", i, x[i], i, tempArray[i]);
+        //printf("key_in[%i] = %i  key_out[%i] = %i\n", i, sortArray[i], i, sortArrayOut[i]);
+        //printf("key_in[%i] = %i  key_out[%i] = %i\n", n-i, sortArray[n-i], n-i, sortArrayOut[n-i]);
+    //}
 
 }
 
@@ -396,7 +375,7 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
         int childIndex = child[temp*8 + childPath];
 
         // traverse tree until hitting leaf node
-        while (childIndex >= n) {
+        while (childIndex >= m) { //n
 
             temp = childIndex;
 
@@ -468,7 +447,7 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
                     if (childIndex >= n) {
                         printf("ATTENTION!\n");
                     }
-                    int patch = 8 * n; //8*n //4*n //-1
+                    int patch = 8 * m; //8*n
                     while (childIndex >= 0 && childIndex < n) {
 
                         //create a new cell (by atomically requesting the next unused array index)
@@ -585,18 +564,52 @@ __global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domai
 
 __global__ void treeInfoKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                 int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                                float *minZ, float *maxZ, int n, int m, int *procCounter) {
+                                float *minZ, float *maxZ, int n, int m, int *procCounter, SubDomainKeyTree *s,
+                                int *sortArray, int *sortArrayOut) {
 
     int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
     int stride = blockDim.x * gridDim.x;
+    unsigned long key;
+    int toCheck;
+    int toCheckSorted;
+    int proc;
+
+    int offset = 0;
+
+    while ((bodyIndex + offset) < n) {
+        // ...
+        offset += stride;
+    }
 
     if (bodyIndex == 0) {
+
+        printf("&sortArrayOut = %p\n", sortArrayOut);
+
+        for (int i=0; i<10; i++) {
+            printf("sortArray[%i] = %i | sortArrayOut[%i] = %i\n", i, sortArray[i], i, sortArrayOut[i]);
+        }
+
+        //toCheck = 200000;
+        //toCheckSorted = sortArrayOut[sortArray[toCheck]]; //sortArray[toCheck];
+        //key = getParticleKeyPerParticle(x[toCheckSorted], y[toCheckSorted], z[toCheckSorted], minX, maxX, minY, maxY, minZ, maxZ, 21);
+        //proc = key2proc(key, s);
+        //printf("\t[rank %i] x[%i] = %f ,  sortArray = %i,  sortArrayOut = %i,  x[%i] = (%f, %f, %f) m = %f proc = %i\n", s->rank, toCheck, x[toCheck],
+        //       sortArray[toCheck], sortArrayOut[sortArray[toCheck]], toCheckSorted, x[toCheckSorted], y[toCheckSorted], z[toCheckSorted], mass[toCheckSorted],
+        //       proc);
+
         //for (int i = 0; i < 8; i++) {
         //    printf("child[%i] = %i  count = %i, mass = %f, x = %f\n", i,
         //           child[i], count[child[i]], mass[child[i]], x[child[i]]);
         //}
-        printf("procCounter[0] = %i  procCounter[1] = %i (sum = %i)\n", procCounter[0], procCounter[1],
-               procCounter[0] + procCounter[1]);
+        //printf("[rank %i] x[0] = %f ,  x[%i] = %f,   x[%i] = %f \n", s->rank, x[0], n-1, x[n-1], n, x[n]);
+        //printf("[rank %i] m[0] = %f ,  m[%i] = %f,   m[%i] = %f \n", s->rank, mass[0], n-1, mass[n-1], n, mass[n]);
+
+        /*for (int i=procCounter[0]+1; i<(procCounter[0] + 1 + 10); i++) {
+            toCheck = i; //procCounter[0]+2;
+            key = getParticleKeyPerParticle(x[toCheck], y[toCheck], z[toCheck], minX, maxX, minY, maxY, minZ, maxZ, 21);
+            proc = key2proc(key, s);
+            printf("[rank %i] toCheck = %i  proc = %i\n", s->rank, toCheck, proc);
+        }*/
     }
 
 }
@@ -658,8 +671,7 @@ __device__ unsigned long getParticleKeyPerParticle(float x, float y, float z,
 
     while (level <= maxLevel) {
 
-        sonBox = 0; //TODO: needed?
-
+        sonBox = 0;
         // find insertion point for body
         if (x < 0.5 * (min_x+max_x)) {
             sonBox += 1;
@@ -725,9 +737,9 @@ __global__ void getParticleKeyKernel(float *x, float *y, float *z, float *minX, 
 }
 
 __device__ int key2proc(unsigned long k, SubDomainKeyTree *s) {
-    for (int i=0; i<s->numProcesses; i++) {
-        if (k >= s->range[i] && k < s->range[i+1]) {
-            return i;
+    for (int proc=0; proc<s->numProcesses; proc++) {
+        if (k >= s->range[proc] && k < s->range[proc+1]) {
+            return proc;
         }
     }
     //printf("ERROR: key2proc(k=%lu): -1!", k);
@@ -923,9 +935,9 @@ __global__ void sortKernel(int *count, int *start, int *sorted, int *child, int 
     int cell = n + bodyIndex;
     int ind = *index;
 
-    int counter = 0;
+    //int counter = 0;
     while ((cell + offset) < ind /*&& counter < 100000*/) {
-        counter++;
+        //counter++;
         
         s = start[cell + offset];
 
