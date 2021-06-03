@@ -923,19 +923,21 @@ int BarnesHut::sendParticlesEntry(int *sendLengths, int *receiveLengths, float *
     MPI_Waitall(h_subDomainHandler->numProcesses-1, reqParticles, statParticles);
 
     int offset = 0;
-    for (int i=0; i<h_subDomainHandler->rank; i++) {
+    for (int i=0; i < h_subDomainHandler->rank; i++) {
         offset += h_procCounter[h_subDomainHandler->rank];
     }
 
 
     if (h_subDomainHandler->rank != 0) {
-        KernelHandler.copyArray(&entry[0], &entry[offset]/*&entry[h_procCounter[h_subDomainHandler->rank - 1]]*/, h_procCounter[h_subDomainHandler->rank]); //float *targetArray, float *sourceArray, int n)
+        KernelHandler.copyArray(&entry[0], &entry[offset - h_procCounter[h_subDomainHandler->rank]] /*&entry[h_procCounter[h_subDomainHandler->rank - 1]]*/, h_procCounter[h_subDomainHandler->rank]); //float *targetArray, float *sourceArray, int n)
     }
 
     KernelHandler.resetFloatArray(&entry[h_procCounter[h_subDomainHandler->rank]], 0, numParticles-h_procCounter[h_subDomainHandler->rank]); //resetFloatArrayKernel(float *array, float value, int n)
     KernelHandler.copyArray(&entry[h_procCounter[h_subDomainHandler->rank]], d_tempArray, receiveOffset);
 
-    Logger(INFO) << "New local particle amount: " << receiveOffset + h_procCounter[h_subDomainHandler->rank];
+    Logger(INFO) << "New local particle amount: " << receiveOffset + h_procCounter[h_subDomainHandler->rank]
+                        << "  (receiveOffset = " << receiveOffset << ", procCounter = "
+                        << h_procCounter[h_subDomainHandler->rank] << ")";
 
     return receiveOffset + h_procCounter[h_subDomainHandler->rank];
 }
