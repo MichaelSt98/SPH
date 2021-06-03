@@ -16,6 +16,7 @@
 //#define KEY_MAX ULONG_MAX
 
 #define TESTING 0
+#define CUDA_AWARE_MPI_TESTING 0
 
 #define SafeCudaCall(call) CheckCudaCall(call, #call, __FILE__, __LINE__)
 #define gpuErrorcheck(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -161,6 +162,8 @@ public:
 
     void sortArrayRadix(float *arrayToSort, float *tempArray, int *keyIn, int *keyOut, int n);
     void gatherParticles(float *xAll, float *yAll, float *zAll);
+
+    int sendParticlesEntry(int *sendLengths, int *receiveLengths, float *entry);
 };
 
 

@@ -30,7 +30,7 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     MPI_Comm_rank(MPI_COMM_WORLD, &h_subDomainHandler->rank); //0;
     h_subDomainHandler->range = new unsigned long[3];
     h_subDomainHandler->range[0] = 0;
-    h_subDomainHandler->range[1] = 4611686018427387904UL;// + 3872UL;
+    h_subDomainHandler->range[1] = 2305843009213693952UL; //4611686018427387904UL;// + 3872UL;
     h_subDomainHandler->range[2] = KEY_MAX;
     /*h_subDomainHandler->numProcesses =*/
     MPI_Comm_size(MPI_COMM_WORLD, &h_subDomainHandler->numProcesses); //2;
@@ -445,7 +445,28 @@ void BarnesHut::update(int step)
     //d_x;
     //d_tempArray;
 
-    MPI_Request reqParticles[h_subDomainHandler->numProcesses - 1];
+#if CUDA_AWARE_MPI_TESTING
+    // ------------------CUDA aware MPI Testing ----------------------------------------------------------------------
+    MPI_Request reqTest[h_subDomainHandler->numProcesses - 1];
+    MPI_Status statTest[h_subDomainHandler->numProcesses - 1];
+
+    reqCounter = 0;
+
+    for (int proc=0; proc < h_subDomainHandler->numProcesses; proc++) {
+        if (proc != h_subDomainHandler->rank) {
+            MPI_Isend(d_sortArrayOut, 10, MPI_INT, proc, 0, MPI_COMM_WORLD, &reqTest[reqCounter]);
+            MPI_Recv(d_sortArray, 10, MPI_INT, proc, 0, MPI_COMM_WORLD, &statTest[reqCounter]);
+            reqCounter++;
+        }
+    }
+
+    MPI_Waitall(h_subDomainHandler->numProcesses-1, reqTest, statTest);
+    // ------------------CUDA aware MPI Testing ----------------------------------------------------------------------
+#endif
+
+    Logger(INFO) << "&d_sortArrayOut = " << d_sortArrayOut;
+
+    /*MPI_Request reqParticles[h_subDomainHandler->numProcesses - 1];
     MPI_Status statParticles[h_subDomainHandler->numProcesses - 1];
 
     reqCounter = 0;
@@ -453,16 +474,6 @@ void BarnesHut::update(int step)
     int receiveOffset = 0;
 
     for (int proc=0; proc < h_subDomainHandler->numProcesses; proc++) {
-        if (proc != h_subDomainHandler->rank) {
-            MPI_Isend(d_sortArrayOut, 1, MPI_INT, proc, 0, MPI_COMM_WORLD, &reqParticles[reqCounter]);
-            MPI_Recv(d_sortArray, 1, MPI_INT, proc, 0, MPI_COMM_WORLD, &statParticles[reqCounter]);
-            reqCounter++;
-        }
-    }
-
-    Logger(INFO) << "&d_sortArrayOut = " << d_sortArrayOut;
-
-    /*for (int proc=0; proc < h_subDomainHandler->numProcesses; proc++) {
         if (proc != h_subDomainHandler->rank) {
             if (proc == 0) {
                 MPI_Isend(&d_x[0], sendLengths[proc], MPI_FLOAT, proc, 17,
@@ -477,9 +488,24 @@ void BarnesHut::update(int step)
             receiveOffset += receiveLengths[proc];
             reqCounter++;
         }
-    }*/
+    }
 
-    MPI_Waitall(h_subDomainHandler->numProcesses-1, reqParticles, statParticles);
+    MPI_Waitall(h_subDomainHandler->numProcesses-1, reqParticles, statParticles);*/
+
+    sendParticlesEntry(sendLengths, receiveLengths, d_x);
+    sendParticlesEntry(sendLengths, receiveLengths, d_y);
+    sendParticlesEntry(sendLengths, receiveLengths, d_z);
+
+    sendParticlesEntry(sendLengths, receiveLengths, d_vx);
+    sendParticlesEntry(sendLengths, receiveLengths, d_vz);
+    sendParticlesEntry(sendLengths, receiveLengths, d_vy);
+
+    sendParticlesEntry(sendLengths, receiveLengths, d_ax);
+    sendParticlesEntry(sendLengths, receiveLengths, d_ay);
+    sendParticlesEntry(sendLengths, receiveLengths, d_az);
+
+    numParticlesLocal = sendParticlesEntry(sendLengths, receiveLengths, d_mass);
+
 
 
 //#if TESTING
@@ -868,6 +894,50 @@ void BarnesHut::gatherParticles(float *xAll, float *yAll, float *zAll) {
     //collect information
     //MPI_Gatherv(pArray, pLength, mpiParticle, pArrayAll, pArrayReceiveLength,
                 //pArrayDisplacements, mpiParticle, 0, MPI_COMM_WORLD);
+}
+
+int BarnesHut::sendParticlesEntry(int *sendLengths, int *receiveLengths, float *entry) {
+    MPI_Request reqParticles[h_subDomainHandler->numProcesses - 1];
+    MPI_Status statParticles[h_subDomainHandler->numProcesses - 1];
+
+    int reqCounter = 0;
+    int receiveOffset = 0;
+
+    for (int proc=0; proc < h_subDomainHandler->numProcesses; proc++) {
+        if (proc != h_subDomainHandler->rank) {
+            if (proc == 0) {
+                MPI_Isend(&entry[0], sendLengths[proc], MPI_FLOAT, proc, 17,
+                          MPI_COMM_WORLD, &reqParticles[reqCounter]);
+            }
+            else {
+                MPI_Isend(&entry[h_procCounter[proc-1]], sendLengths[proc], MPI_FLOAT, proc, 17,
+                          MPI_COMM_WORLD, &reqParticles[reqCounter]);
+            }
+            MPI_Recv(&d_tempArray[0] + receiveOffset, receiveLengths[proc], MPI_FLOAT, proc, 17,
+                     MPI_COMM_WORLD, &statParticles[reqCounter]);
+            receiveOffset += receiveLengths[proc];
+            reqCounter++;
+        }
+    }
+
+    MPI_Waitall(h_subDomainHandler->numProcesses-1, reqParticles, statParticles);
+
+    int offset = 0;
+    for (int i=0; i<h_subDomainHandler->rank; i++) {
+        offset += h_procCounter[h_subDomainHandler->rank];
+    }
+
+
+    if (h_subDomainHandler->rank != 0) {
+        KernelHandler.copyArray(&entry[0], &entry[offset]/*&entry[h_procCounter[h_subDomainHandler->rank - 1]]*/, h_procCounter[h_subDomainHandler->rank]); //float *targetArray, float *sourceArray, int n)
+    }
+
+    KernelHandler.resetFloatArray(&entry[h_procCounter[h_subDomainHandler->rank]], 0, numParticles-h_procCounter[h_subDomainHandler->rank]); //resetFloatArrayKernel(float *array, float value, int n)
+    KernelHandler.copyArray(&entry[h_procCounter[h_subDomainHandler->rank]], d_tempArray, receiveOffset);
+
+    Logger(INFO) << "New local particle amount: " << receiveOffset + h_procCounter[h_subDomainHandler->rank];
+
+    return receiveOffset + h_procCounter[h_subDomainHandler->rank];
 }
 
 

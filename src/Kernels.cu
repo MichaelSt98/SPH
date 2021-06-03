@@ -296,7 +296,7 @@ __global__ void sendParticlesKernel(float *x, float *y, float *z, float *mass, i
 
     for (int i=10000; i<10005; i++) {
         printf("[rank %i] tempArray[%i] = %f\n", s->rank, i, tempArray[i]);
-        printf("[rank %i] x[%i] = %f\n", s->rank, i, x[i]);
+        printf("[rank %i] mass[%i] = %f\n", s->rank, i, mass[i]);
     }
     //for (int i=0; i<5; i++) {
         //printf("x[%i] = %f  out[%i] = %f\n", i, x[i], i, tempArray[i]);
@@ -583,11 +583,11 @@ __global__ void treeInfoKernel(float *x, float *y, float *z, float *mass, int *c
 
     if (bodyIndex == 0) {
 
-        printf("&sortArrayOut = %p\n", sortArrayOut);
+        //printf("&sortArrayOut = %p\n", sortArrayOut);
 
-        for (int i=0; i<10; i++) {
-            printf("sortArray[%i] = %i | sortArrayOut[%i] = %i\n", i, sortArray[i], i, sortArrayOut[i]);
-        }
+        //for (int i=0; i<10; i++) {
+        //    printf("sortArray[%i] = %i | sortArrayOut[%i] = %i\n", i, sortArray[i], i, sortArrayOut[i]);
+        //}
 
         //toCheck = 200000;
         //toCheckSorted = sortArrayOut[sortArray[toCheck]]; //sortArray[toCheck];
