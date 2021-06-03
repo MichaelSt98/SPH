@@ -885,15 +885,53 @@ pa_20 = sorted; sorted = &a_20;*/
 void BarnesHut::gatherParticles(float *xAll, float *yAll, float *zAll) {
 
     //calculate amount of particles for own process
+    // already calculated -> numParticlesLocal
+
+    int particleNumbers[h_subDomainHandler->numProcesses];
+    int displacements[h_subDomainHandler->numProcesses];
 
     //gather these information
-    //MPI_Gather(&pLength, 1, MPI_INT, pArrayReceiveLength, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Gather(&numParticlesLocal, 1, MPI_INT, particleNumbers, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-    //calculate total receive length and allocate memory
+    //device to host (but already done)
+    // cudaMemcpy(h_x, d_x, numNodes*sizeof(float), cudaMemcpyDeviceToHost);
+    // cudaMemcpy(h_y, d_y, numNodes*sizeof(float), cudaMemcpyDeviceToHost);
+    // cudaMemcpy(h_z, d_z, numNodes*sizeof(float), cudaMemcpyDeviceToHost);
+
+    int totalReceiveLength = 0;
+    if (h_subDomainHandler->rank == 0) {
+        displacements[0] = 0;
+        for (int proc = 0; proc < h_subDomainHandler->numProcesses; proc++) {
+            Logger(INFO) << "particleNumbers[" << proc << "] = " << particleNumbers[proc];
+            totalReceiveLength += particleNumbers[proc];
+            if (proc > 0) {
+                displacements[proc] = particleNumbers[proc-1] + displacements[proc-1];
+            }
+        }
+        //allocate memory
+        xAll = new float[totalReceiveLength];
+        yAll = new float[totalReceiveLength];
+        zAll = new float[totalReceiveLength];
+    }
+
+
 
     //collect information
-    //MPI_Gatherv(pArray, pLength, mpiParticle, pArrayAll, pArrayReceiveLength,
-                //pArrayDisplacements, mpiParticle, 0, MPI_COMM_WORLD);
+    MPI_Gatherv(h_x, numParticlesLocal, MPI_FLOAT, xAll, particleNumbers,
+                displacements, MPI_FLOAT, 0, MPI_COMM_WORLD);
+    MPI_Gatherv(h_y, numParticlesLocal, MPI_FLOAT, yAll, particleNumbers,
+                displacements, MPI_FLOAT, 0, MPI_COMM_WORLD);
+    MPI_Gatherv(h_z, numParticlesLocal, MPI_FLOAT, zAll, particleNumbers,
+                displacements, MPI_FLOAT, 0, MPI_COMM_WORLD);
+
+    if (h_subDomainHandler->rank == 0) {
+        Logger(INFO) << "FINISHED GATHERING PARTICLES (totalReceiveLength = " << totalReceiveLength << ")";
+        for (int i=0; i<totalReceiveLength; i++) {
+            if (i % 50000 == 0) {
+                Logger(INFO) << i << ": xAll = " << xAll[i] << " yAll = " << yAll[i] << " zAll = " << zAll[i];
+            }
+        }
+    }
 }
 
 int BarnesHut::sendParticlesEntry(int *sendLengths, int *receiveLengths, float *entry) {
