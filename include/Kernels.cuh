@@ -29,8 +29,9 @@ __global__ void resetArraysKernel(int *mutex, float *x, float *y, float *z, floa
                                   float *minZ, float *maxZ, int n, int m, int *procCounter, int *procCounterTemp);
 
 __global__ void resetArraysParallelKernel(int *domainListIndex, unsigned long *domainListKeys,
-                                          unsigned long *domainListIndices, int *domainListLevels,
-                                          float *tempArray, int n, int m);
+                                          int *domainListIndices, int *domainListLevels,
+                                          float *tempArray, int *to_delete_cell, int *to_delete_leaf,
+                                          int n, int m);
 
 /**
  * Kernel 1: computes bounding box around all bodies
@@ -39,7 +40,8 @@ __global__ void computeBoundingBoxKernel(int *mutex, float *x, float *y, float *
                                          float *minY, float *maxY, float *minZ, float *maxZ, int n, int blockSize);
 
 __global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels,
-                                      int *count, int *start, int *child, int *index, int n, int m);
+                                      int *domainListIndices, int *count, int *start, int *child, int *index, int n,
+                                      int m);
 
 __global__ void particlesPerProcessKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
@@ -100,6 +102,19 @@ __global__ void traverseIterativeKernel(float *x, float *y, float *z, float *mas
 __global__ void createDomainListKernel(SubDomainKeyTree *s, int maxLevel, unsigned long *domainListKeys, int *levels,
                                        int *index);
 
+//TODO: implement
+__global__ void compPseudoParticlesParallelKernel();
+
+//TODO: implement
+__global__ void zeroDomainListNodesKernel();
+
+//TODO: implement
+__global__ void compLocalPseudoParticlesParKernel();
+
+//TODO: implement
+__global__ void compDomainListPseudoParticlesParKernel();
+
+
 __device__ bool isDomainListNode(unsigned long key, int maxLevel, int level, SubDomainKeyTree *s);
 
 __device__ unsigned long keyMaxLevel(unsigned long key, int maxLevel, int level, SubDomainKeyTree *s);
@@ -121,11 +136,59 @@ __global__ void computeForcesKernel(float* x, float *y, float *z, float *vx, flo
                                     float *ax, float *ay, float *az, float *mass, int *sorted, int *child,
                                     float *minX, float *maxX, int n, float g, int blockSize, int warp, int stackSize);
 
+
+__device__ float smallestDistance(float* x, float *y, float *z, int node1, int node2);
+
+
+//TODO: not tested yet
+__global__ void collectSendIndicesKernel(int *sendIndices, float *entry, float *tempArray, int *domainListCounter,
+                                   int sendCount);
+
+//TODO: implement
+__global__ void symbolicForce();
+
+
+//TODO: implement
+__global__ void compTheta();
+// go over the domain list nodes
+// if domain list node is not from my process
+// call symbolicForce()
+// determine all particles/pseudoparticles/nodes that if (diam >= theta * r) with r as smallest distance
+// remove duplicates
+// send these particles/pseudoparticles/nodes to the corresponding processes (within compF_BH_par())
+// ...
+
+/*
+ * Approach 1:
+ *
+ * -compTheta makes list of domain List nodes not from my process
+ * -looping over these calling symbolicForce
+ * -adding if not already stored in array (from loops before...)
+ *
+ * */
+
 /**
  * Kernel 6: updates the bodies
  */
 __global__ void updateKernel(float *x, float *y, float *z, float *vx, float *vy, float *vz,
                              float *ax, float *ay, float *az, int n, float dt, float d);
 
+
+//TODO: implement
+/*
+ * Insert received particles
+ * Mark with to_delete_cell and to_delete_leaf
+ */
+//TODO: not tested yet!
+__global__ void insertReceivedParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
+                                        int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                        float *minZ, float *maxZ, int n, int m);
+
+//TODO: not tested yet!
+__global__ void repairTree(float *x, float *y, float *z, float *vx, float *vy, float *vz,
+                           float *ax, float *ay, float *az, float *mass, int *count, int *start,
+                           int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                           float *minZ, float *maxZ, int *to_delete_cell, int *to_delete_leaf,
+                           int *domainListIndices, int n, int m);
 
 #endif //CUDA_NBODY_KERNELS_CUH

@@ -23,6 +23,18 @@
 
 ## Domain list nodes
 
+* childIndex > n --> cell / pseudoparticle/ domain list node **mark as domain list**
+* childIndex < n 
+	* childIndex == -1 --> leaf **insert pseudoparticle (not! particle) and mark as domain list**
+	* else --> pseudoparticle/ domain list node with leaf as child **insert pseudoparticle inbetween and mark as domain list** 	
+
+
+* `buildDomainTreeKernel()`
+
+
+Old ...
+
+_____
 * How to?
 
 ```cpp
@@ -55,3 +67,4 @@ void createDomainList(TreeNode *t, int level, keytype k, SubDomainKeyTree *s) {
 }
 
 ```     	
+

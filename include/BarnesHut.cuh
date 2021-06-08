@@ -93,6 +93,13 @@ private:
     int *d_procCounter;
     int *d_procCounterTemp;
 
+    int *d_domainListCounter;
+    int *d_relevantDomainListIndices;
+    int *d_sendIndices;
+
+    int *d_to_delete_cell;
+    int *d_to_delete_leaf;
+
     float *d_x;
     float *d_y;
     float *d_z;
@@ -152,6 +159,14 @@ public:
     float *h_vy;
     float *h_vz;
 
+    float *all_x;
+    float *all_y;
+    float *all_z;
+
+    float *all_vx;
+    float *all_vy;
+    float *all_vz;
+
     BarnesHut(const SimulationParameters p);
     ~BarnesHut();
 
@@ -161,9 +176,14 @@ public:
     void globalizeBoundingBox();
 
     void sortArrayRadix(float *arrayToSort, float *tempArray, int *keyIn, int *keyOut, int n);
-    void gatherParticles(float *xAll, float *yAll, float *zAll);
+    //int gatherParticles(float *xAll, float *yAll, float *zAll, bool deviceToHost=false);
+    int gatherParticles(bool velocities=true, bool deviceToHost=false);
 
     int sendParticlesEntry(int *sendLengths, int *receiveLengths, float *entry);
+
+    void exchangeParticleEntry(int *sendLengths, int *receiveLengths, float *entry);
+
+    void compPseudoParticlesParallel();
 };
 
 

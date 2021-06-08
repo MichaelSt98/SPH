@@ -30,14 +30,15 @@ public:
                       float *minZ, float *maxZ, int n, int m, int *procCounter, int *procCounterTemp,
                       bool timing=false);
 
-    void resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,  unsigned long *domainListIndices,
-                             int *domainListLevels, float *tempArray, int n, int m);
+    void resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,  int *domainListIndices,
+                             int *domainListLevels, float *tempArray, int *to_delete_cell, int *to_delete_leaf,
+                             int n, int m);
 
     float computeBoundingBox(int *mutex, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
                              float *maxY, float *minZ, float *maxZ, int n, bool timing=false);
 
-    float buildDomainTree(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels, int *count,
-                          int *start, int *child, int *index, int n, int m, bool timing=false);
+    float buildDomainTree(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels, int *domainListIndices,
+                          int *count, int *start, int *child, int *index, int n, int m, bool timing=false);
 
     float particlesPerProcess(float *x, float *y, float *z, float *mass, int *count, int *start, int *child,
                               int *index, float *minX, float *maxX, float *minY, float *maxY, float *minZ,
@@ -95,6 +96,10 @@ public:
 
     float update(float *x, float *y, float *z, float *vx, float *vy, float *vz, float *ax, float *ay, float *az, int n,
                  float dt, float d, bool timing=false);
+
+
+    void collectSendIndices(int *sendIndices, float *entry, float *tempArray, int *domainListCounter,
+                                             int sendCount, timing=false);
 
 };
 

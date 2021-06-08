@@ -55,10 +55,13 @@ float KernelsWrapper::resetArrays(int *mutex, float *x, float *y, float *z, floa
 }
 
 void KernelsWrapper::resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,
-                                         unsigned long *domainListIndices, int *domainListLevels,
-                                         float *tempArray, int n, int m) {
+                                         int *domainListIndices, int *domainListLevels,
+                                         float *tempArray, int *to_delete_cell, int *to_delete_leaf,
+                                         int n, int m) {
+
     resetArraysParallelKernel<<< gridSize, blockSize >>>(domainListIndex, domainListKeys, domainListIndices,
-                                                         domainListLevels, tempArray, n, m);
+                                                         domainListLevels, tempArray, to_delete_cell, to_delete_leaf,
+                                                         n, m);
 }
 
 float KernelsWrapper::computeBoundingBox(int *mutex, float *x, float *y, float *z, float *minX,
@@ -87,7 +90,8 @@ float KernelsWrapper::computeBoundingBox(int *mutex, float *x, float *y, float *
 }
 
 float KernelsWrapper::buildDomainTree(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels,
-                     int *count, int *start, int *child, int *index, int n, int m, bool timing) {
+                                      int *domainListIndices, int *count, int *start, int *child, int *index, int n,
+                                      int m, bool timing) {
 
     float elapsedTime = 0.f;
     if (timing) {
@@ -96,7 +100,7 @@ float KernelsWrapper::buildDomainTree(int *domainListIndex, unsigned long *domai
         cudaEventCreate(&stop_t);
         cudaEventRecord(start_t, 0);
 
-    buildDomainTreeKernel<<< 1, 1 >>>(domainListIndex, domainListKeys, domainListLevels, count, start, child, index, n, m);
+    buildDomainTreeKernel<<< 1, 1 >>>(domainListIndex, domainListKeys, domainListLevels, domainListIndices, count, start, child, index, n, m);
 
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
@@ -105,7 +109,7 @@ float KernelsWrapper::buildDomainTree(int *domainListIndex, unsigned long *domai
         cudaEventDestroy(stop_t);
     }
     else {
-        buildDomainTreeKernel<<< 1, 1 >>>(domainListIndex, domainListKeys, domainListLevels, count, start, child, index, n, m);
+        buildDomainTreeKernel<<< 1, 1 >>>(domainListIndex, domainListKeys, domainListLevels, domainListIndices, count, start, child, index, n, m);
     }
     return elapsedTime;
 
@@ -517,6 +521,33 @@ float KernelsWrapper::update(float *x, float *y, float *z, float *vx, float *vy,
     }
     else {
         updateKernel<<< gridSize, blockSize >>>(x, y, z, vx, vy, vz, ax, ay, az, n, dt, d);
+    }
+    return elapsedTime;
+
+}
+
+void KernelsWrapper::collectSendIndices(int *sendIndices, float *entry, float *tempArray, int *domainListCounter,
+                                        int sendCount) {
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t; // used for timing
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        collectSendIndicesKernel<<< gridSize, blockSize >>>(sendIndices, entry, tempArray, domainListCounter,
+                                                            sendCount);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        collectSendIndicesKernel<<< gridSize, blockSize >>>(sendIndices, entry, tempArray, domainListCounter,
+                                                            sendCount);
     }
     return elapsedTime;
 

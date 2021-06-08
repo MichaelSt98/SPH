@@ -66,8 +66,9 @@ __global__ void resetArraysKernel(int *mutex, float *x, float *y, float *z, floa
 }
 
 __global__ void resetArraysParallelKernel(int *domainListIndex, unsigned long *domainListKeys,
-                                          unsigned long *domainListIndices, int *domainListLevels,
-                                          float *tempArray, int n, int m) {
+                                          int *domainListIndices, int *domainListLevels,
+                                          float *tempArray, int *to_delete_cell, int *to_delete_leaf,
+                                          int n, int m) {
 
     int bodyIndex = threadIdx.x + blockDim.x*blockIdx.x;
     int stride = blockDim.x*gridDim.x;
@@ -79,7 +80,7 @@ __global__ void resetArraysParallelKernel(int *domainListIndex, unsigned long *d
         if ((bodyIndex + offset) < DOMAIN_LIST_SIZE) {
             domainListLevels[bodyIndex + offset] = -1;
             domainListKeys[bodyIndex + offset] = KEY_MAX;
-            domainListIndices[bodyIndex + offset] = KEY_MAX;
+            domainListIndices[bodyIndex + offset] = -1;
             offset += stride;
         }
 
@@ -87,6 +88,10 @@ __global__ void resetArraysParallelKernel(int *domainListIndex, unsigned long *d
     }
     if (bodyIndex == 0) {
         *domainListIndex = 0;
+        to_delete_cell[0] = -1;
+        to_delete_cell[1] = -1;
+        to_delete_leaf[0] = -1;
+        to_delete_leaf[1] = -1;
     }
 }
 
@@ -428,21 +433,6 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
                     //insert body and release lock
                     child[locked] = bodyIndex + offset;
                 }
-                /*else if (domainNode) {
-                    printf("Inserting particle %i... (childIndex = %i, temp = %i)\n", bodyIndex+offset,
-                           childIndex, temp);
-
-                    mass[(-1)*childIndex] = mass[bodyIndex + offset]; //mass[temp]
-                    x[(-1)*childIndex] = x[bodyIndex + offset];
-                    y[(-1)*childIndex] = y[bodyIndex + offset];
-                    z[(-1)*childIndex] = z[bodyIndex + offset];
-                    //atomicAdd(&count[(-1)*childIndex], 1);
-                    //printf("mass[%i] = %f\n", temp, mass[temp]);
-                    child[locked] = bodyIndex + offset;
-                    //printf("child[%i] = %i\n", childPath, child[childPath]);
-                    child[childPath] = childIndex * (-1); //temp;
-                    printf("child[%i] = %i\n", childPath, child[childPath]);
-                }*/
                 else {
                     if (childIndex >= n) {
                         printf("ATTENTION!\n");
@@ -523,10 +513,12 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
     }
 }
 
+//TODO: save indices of domain list nodes
 __global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels,
-                                      int *count, int *start, int *child, int *index, int n, int m) {
+                                      int *domainListIndices, int *count, int *start, int *child, int *index,
+                                      int n, int m) {
 
-    int domainListIndices[512];
+    //int domainListIndices[512];
     int domainListCounter = 0;
 
     char keyAsChar[21 * 2 + 3];
@@ -549,14 +541,21 @@ __global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domai
             //printf("\tson: %i\n", path[j]);
             temp = childIndex;
             childIndex = child[8*childIndex + path[j]];
-            if (childIndex == -1 && childIndex < n) {
-                printf("domain: not existing yet: %s (level = %i, childIndex = %i)!\n", keyAsChar, j, childIndex);
-                int cell = localIndex++; //atomicAdd(index, 1);
-                child[8*temp + path[j]] = cell;
-                childIndex = cell;
+            if (childIndex < n) {
+                if (childIndex == -1 /*&& childIndex < n*/) {
+                    // no child at all
+                    printf("domain: not existing yet: %s (level = %i, childIndex = %i)!\n", keyAsChar, j, childIndex);
+                    int cell = localIndex++; //atomicAdd(index, 1);
+                    child[8 * temp + path[j]] = cell;
+                    childIndex = cell;
+                } else {
+                    //child is a leaf --> insert a
+                    //printf("domain: already existing!\n");
+                }
             }
             else {
                 //printf("domain: already existing!\n");
+                //add temp to domainListIndices
             }
         }
     }
@@ -855,6 +854,28 @@ __device__ unsigned long keyMaxLevel(unsigned long key, int maxLevel, int level,
     return keyMax;
 }
 
+
+//TODO: implement
+__global__ void compPseudoParticlesParallelKernel() {
+    //at all needed, since compPseudoParticlesParallel() not as kernel but as "normal function"
+}
+
+//TODO: implement
+__global__ void zeroDomainListNodesKernel() {
+    //reset domain list nodes (only)
+    //needed since tree is built for every iteration?!
+}
+
+//TODO: implement
+__global__ void compLocalPseudoParticlesParKernel() {
+    //equivalent to centreOfMassKernel !?
+}
+
+//TODO: implement
+__global__ void compDomainListPseudoParticlesParKernel() {
+    //calculate position (center of mass) and mass for domain list nodes
+}
+
 // Kernel 3: computes the COM for each cell
 __global__ void centreOfMassKernel(float *x, float *y, float *z, float *mass, int *index, int n)
 {
@@ -1081,6 +1102,133 @@ __global__ void computeForcesKernel(float* x, float *y, float *z, float *vx, flo
     }
 }
 
+__device__ float smallestDistance(float* x, float *y, float *z, int node1, int node2) {
+    float dx;
+    if (x[node1] < x[node2]) {
+        dx = x[node2] - x[node1];
+    }
+    else if (x[node1] > x[node2]) {
+        dx = x[node1] - x[node2];
+    }
+    else {
+        dx = 0.f;
+    }
+
+    float dy;
+    if (y[node1] < y[node2]) {
+        dy = y[node2] - y[node1];
+    }
+    else if (y[node1] > y[node2]) {
+        dy = y[node1] - y[node2];
+    }
+    else {
+        dy = 0.f;
+    }
+
+    float dz;
+    if (z[node1] < z[node2]) {
+        dz = z[node2] - z[node1];
+    }
+    else if (z[node1] > z[node2]) {
+        dz = z[node1] - z[node2];
+    }
+    else {
+        dz = 0.f;
+    }
+
+    return sqrtf(dx*dx + dy*dy + dz*dz);
+}
+
+//TODO: not tested yet
+__global__ void collectSendIndicesKernel(int *sendIndices, float *entry, float *tempArray, int *domainListCounter,
+                                   int sendCount) {
+
+    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+    int offset = 0;
+    int insertIndex;
+
+    while ((bodyIndex + offset) < sendCount) {
+        insertIndex = atomicAdd(domainListCounter);
+        tempArray[insertIndex] = entry[sendIndices[bodyIndex + offset]];
+
+        offset += stride;
+    }
+}
+
+//TODO: not tested yet
+__global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float *v, int *domainListIndex,
+                              unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
+                              int *domainListCounter, float *sendIndices, int *index, int *particleCounter,
+                              SubDomainKeyTree *s, int n, int m, float diam, float theta) {
+
+    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+    int offset = 0;
+    float r;
+    int insertIndex;
+    bool insert;
+
+    while ((bodyIndex + offset) < *index) {
+        insert = true;
+        if ((bodyIndex + offset) < particleCounter[s->rank] || (bodyIndex + offset) > n) {
+            r = smallestDistance(x, y, z, relevantIndex, bodyIndex + offset);
+            if (diam >= (theta * r)) {
+                for (int i=0; i<*domainListCounter; i++) {
+                    if ((bodyIndex + offset) == sendIndices[i]) {
+                        insert = false;
+                    }
+                }
+                if (insert) {
+                    //add to indices to be sent
+                    insertIndex = atomicAdd(domainListCounter);
+                    sendIndices[insertIndex] = bodyIndex + offset;
+                }
+            }
+        }
+        else {
+            //no particle to examine...
+        }
+
+        offset += stride;
+    }
+
+}
+
+//TODO: implement
+//TODO: reset domainListCounter after compTheta!!!
+__global__ void compThetaKernel(float *x, float *y, float *v, float *minX, float *maxX, float *minY, float *maxY,
+                          float *minZ, float *maxZ, int *domainListIndex, int *domainListCounter,
+                          unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
+                          int *relevantDomainListIndices, SubDomainKeyTree *s) {
+
+    int index = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+    int offset = 0;
+    int bodyIndex = 0;
+    unsigned long key;
+    int domainListIndex;
+
+    //"loop" over domain list nodes
+    while ((index + offset) < domainListIndex) {
+
+        bodyIndex = domainListIndices[index + offset];
+
+        //calculate key
+        key = getParticleKeyPerParticle(x[bodyIndex], y[bodyIndex], z[bodyIndex], minX, maxX, minY, maxY,
+                                        minZ, maxZ, 21);
+
+        //if domain list node belongs to other process: add to relevant domain list indices
+        if (key2proc(key, s) != s->rank) {
+            domainListIndex = atomicAdd(domainListCounter);
+            relevantDomainListIndices[domainListIndex] = bodyIndex;
+        }
+
+        offset += stride;
+    }
+
+}
+
 
 // Kernel 6: updates the bodies
 __global__ void updateKernel(float *x, float *y, float *z, float *vx, float *vy, float *vz,
@@ -1102,4 +1250,272 @@ __global__ void updateKernel(float *x, float *y, float *z, float *vx, float *vy,
 
         offset += stride;
     }
+}
+
+//TODO: implement
+/*
+ * Insert received particles
+ * Mark with to_delete_cell and to_delete_leaf
+ */
+//TODO: not tested yet!
+__global__ void insertReceivedParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
+                                int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                float *minZ, float *maxZ, int n, int m) {
+
+    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+
+    //note: -1 used as "null pointer"
+    //note: -2 used to lock a child (pointer)
+
+    int offset;
+    bool newBody = true;
+
+    float min_x;
+    float max_x;
+    float min_y;
+    float max_y;
+    float min_z;
+    float max_z;
+
+    int childPath;
+    int temp;
+
+    offset = 0;
+
+    while ((bodyIndex + offset) < to_delete_leaf[1] && (bodyIndex + offset) >= to_delete_leaf[0]) {
+
+        if (newBody) {
+
+            newBody = false;
+
+            min_x = *minX;
+            max_x = *maxX;
+            min_y = *minY;
+            max_y = *maxY;
+            min_z = *minZ;
+            max_z = *maxZ;
+
+            temp = 0;
+            childPath = 0;
+
+            // find insertion point for body
+            if (x[bodyIndex + offset] < 0.5 * (min_x + max_x)) { // x direction
+                childPath += 1;
+                max_x = 0.5 * (min_x + max_x);
+            }
+            else {
+                min_x = 0.5 * (min_x + max_x);
+            }
+            if (y[bodyIndex + offset] < 0.5 * (min_y + max_y)) { // y direction
+                childPath += 2;
+                max_y = 0.5 * (min_y + max_y);
+            }
+            else {
+                min_y = 0.5 * (min_y + max_y);
+            }
+            if (z[bodyIndex + offset] < 0.5 * (min_z + max_z)) {  // z direction
+                childPath += 4;
+                max_z = 0.5 * (min_z + max_z);
+            }
+            else {
+                min_z = 0.5 * (min_z + max_z);
+            }
+        }
+
+        int childIndex = child[temp*8 + childPath];
+
+        // traverse tree until hitting leaf node
+        while (childIndex >= m) { //n
+
+            temp = childIndex;
+
+            childPath = 0;
+
+            // find insertion point for body
+            if (x[bodyIndex + offset] < 0.5 * (min_x + max_x)) { // x direction
+                childPath += 1;
+                max_x = 0.5 * (min_x + max_x);
+            }
+            else {
+                min_x = 0.5 * (min_x + max_x);
+            }
+            if (y[bodyIndex + offset] < 0.5 * (min_y + max_y)) { // y direction
+                childPath += 2;
+                max_y = 0.5 * (min_y + max_y);
+            }
+            else {
+                min_y = 0.5 * (min_y + max_y);
+            }
+            if (z[bodyIndex + offset] < 0.5 * (min_z + max_z)) { // z direction
+                childPath += 4;
+                max_z = 0.5 * (min_z + max_z);
+            }
+            else {
+                min_z = 0.5 * (min_z + max_z);
+            }
+
+            if (mass[bodyIndex + offset] != 0) {
+                atomicAdd(&x[temp], mass[bodyIndex + offset] * x[bodyIndex + offset]);
+                atomicAdd(&y[temp], mass[bodyIndex + offset] * y[bodyIndex + offset]);
+                atomicAdd(&z[temp], mass[bodyIndex + offset] * z[bodyIndex + offset]);
+            }
+
+            atomicAdd(&mass[temp], mass[bodyIndex + offset]);
+            atomicAdd(&count[temp], 1);
+
+            childIndex = child[8*temp + childPath];
+        }
+
+        // if child is not locked
+        if (childIndex != -2) {
+
+            int locked = temp * 8 + childPath;
+
+            if (atomicCAS(&child[locked], childIndex, -2) == childIndex) {
+
+                // check whether a body is already stored at the location
+                if (childIndex == -1) {
+                    //insert body and release lock
+                    child[locked] = bodyIndex + offset;
+                }
+                else {
+                    if (childIndex >= n) {
+                        printf("ATTENTION!\n");
+                    }
+                    int patch = 8 * m; //8*n
+                    while (childIndex >= 0 && childIndex < n) {
+
+                        //create a new cell (by atomically requesting the next unused array index)
+                        int cell = atomicAdd(index, 1);
+                        patch = min(patch, cell);
+
+                        if (patch != cell) {
+                            child[8 * temp + childPath] = cell;
+                        }
+
+                        // insert old/original particle
+                        childPath = 0;
+                        if (x[childIndex] < 0.5 * (min_x + max_x)) { childPath += 1; }
+                        if (y[childIndex] < 0.5 * (min_y + max_y)) { childPath += 2; }
+                        if (z[childIndex] < 0.5 * (min_z + max_z)) { childPath += 4; }
+
+                        x[cell] += mass[childIndex] * x[childIndex];
+                        y[cell] += mass[childIndex] * y[childIndex];
+                        z[cell] += mass[childIndex] * z[childIndex];
+
+                        mass[cell] += mass[childIndex];
+                        count[cell] += count[childIndex];
+
+                        child[8 * cell + childPath] = childIndex;
+
+                        start[cell] = -1;
+
+                        // insert new particle
+                        temp = cell;
+                        childPath = 0;
+
+                        // find insertion point for body
+                        if (x[bodyIndex + offset] < 0.5 * (min_x + max_x)) {
+                            childPath += 1;
+                            max_x = 0.5 * (min_x + max_x);
+                        } else {
+                            min_x = 0.5 * (min_x + max_x);
+                        }
+                        if (y[bodyIndex + offset] < 0.5 * (min_y + max_y)) {
+                            childPath += 2;
+                            max_y = 0.5 * (min_y + max_y);
+                        } else {
+                            min_y = 0.5 * (min_y + max_y);
+                        }
+                        if (z[bodyIndex + offset] < 0.5 * (min_z + max_z)) {
+                            childPath += 4;
+                            max_z = 0.5 * (min_z + max_z);
+                        } else {
+                            min_z = 0.5 * (min_z + max_z);
+                        }
+
+                        // COM / preparing for calculation of COM
+                        if (mass[bodyIndex + offset] != 0) {
+                            x[cell] += mass[bodyIndex + offset] * x[bodyIndex + offset];
+                            y[cell] += mass[bodyIndex + offset] * y[bodyIndex + offset];
+                            z[cell] += mass[bodyIndex + offset] * z[bodyIndex + offset];
+                            mass[cell] += mass[bodyIndex + offset];
+                        }
+                        count[cell] += count[bodyIndex + offset];
+                        childIndex = child[8 * temp + childPath];
+                    }
+
+                    child[8 * temp + childPath] = bodyIndex + offset;
+
+                    __threadfence();  // written to global memory arrays (child, x, y, mass) thus need to fence
+                    child[locked] = patch;
+                }
+                offset += stride;
+                newBody = true;
+            }
+        }
+        __syncthreads();
+    }
+}
+
+//TODO: not tested yet!
+__global__ void repairTree(float *x, float *y, float *z, float *vx, float *vy, float *vz,
+                           float *ax, float *ay, float *az, float *mass, int *count, int *start,
+                           int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                           float *minZ, float *maxZ, int *to_delete_cell, int *to_delete_leaf,
+                           int *domainListIndices, int n, int m) {
+
+    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+    int offset = 0;
+
+    //delete inserted leafs
+    while ((bodyIndex + offset) >= to_delete_leaf[0] && (bodyIndex + offset) < to_delete_leaf[1]) {
+        for (int i=0; i<8; i++) {
+            child[(bodyIndex + offset)*8 + i] = -1;
+        }
+        count[bodyIndex + offset] = 1;
+        x[bodyIndex + offset] = 0;
+        y[bodyIndex + offset] = 0;
+        z[bodyIndex + offset] = 0;
+        vx[bodyIndex + offset] = 0;
+        vy[bodyIndex + offset] = 0;
+        vz[bodyIndex + offset] = 0;
+        ax[bodyIndex + offset] = 0;
+        ay[bodyIndex + offset] = 0;
+        az[bodyIndex + offset] = 0;
+        mass[bodyIndex + offset] = 0;
+        start[bodyIndex + offset] = -1;
+        sorted[bodyIndex + offset] = 0;
+
+        offset += stride;
+    }
+
+    offset = 0;
+
+    //delete inserted cells
+    while ((bodyIndex + offset) >= to_delete_cell[0] && (bodyIndex + offset) < to_delete_cell[1]) {
+        for (int i=0; i<8; i++) {
+            child[(bodyIndex + offset)*8 + i] = -1;
+        }
+        count[bodyIndex + offset] = 0;
+        x[bodyIndex + offset] = 0;
+        y[bodyIndex + offset] = 0;
+        z[bodyIndex + offset] = 0;
+        vx[bodyIndex + offset] = 0;
+        vy[bodyIndex + offset] = 0;
+        vz[bodyIndex + offset] = 0;
+        ax[bodyIndex + offset] = 0;
+        ay[bodyIndex + offset] = 0;
+        az[bodyIndex + offset] = 0;
+        mass[bodyIndex + offset] = 0;
+        start[bodyIndex + offset] = -1;
+        sorted[bodyIndex + offset] = 0;
+
+        offset += stride;
+    }
+
+
+
 }
