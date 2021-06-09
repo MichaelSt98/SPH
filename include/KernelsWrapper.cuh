@@ -31,14 +31,17 @@ public:
                       bool timing=false);
 
     void resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,  int *domainListIndices,
-                             int *domainListLevels, float *tempArray, int *to_delete_cell, int *to_delete_leaf,
-                             int n, int m);
+                             int *domainListLevels, int *lowestDomainListIndices, int *lowestDomainListIndex,
+                             unsigned long *lowestDomainListKeys, unsigned long *sortedLowestDomainListKeys,
+                             float *tempArray, int *to_delete_cell, int *to_delete_leaf, int n, int m);
 
     float computeBoundingBox(int *mutex, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
                              float *maxY, float *minZ, float *maxZ, int n, bool timing=false);
 
-    float buildDomainTree(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels, int *domainListIndices,
-                          int *count, int *start, int *child, int *index, int n, int m, bool timing=false);
+    float buildDomainTree(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels,
+                          int *domainListIndices, float *x, float *y, float *z, float *mass, float *minX,
+                          float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int *count,
+                          int *start, int *child, int *index, int n, int m, bool timing=false);
 
     float particlesPerProcess(float *x, float *y, float *z, float *mass, int *count, int *start, int *child,
                               int *index, float *minX, float *maxX, float *minY, float *maxY, float *minZ,
@@ -98,8 +101,49 @@ public:
                  float dt, float d, bool timing=false);
 
 
-    void collectSendIndices(int *sendIndices, float *entry, float *tempArray, int *domainListCounter,
-                                             int sendCount, timing=false);
+    float collectSendIndices(int *sendIndices, float *entry, float *tempArray, int *domainListCounter,
+                                             int sendCount, bool timing=false);
+
+
+    float lowestDomainListNodes(int *domainListIndices, int *domainListIndex, unsigned long *domainListKeys,
+                                                int *lowestDomainListIndices, int *lowestDomainListIndex,
+                                                unsigned long *lowestDomainListKeys,
+                                                float *x, float *y, float *z, float *mass, int *count, int *start,
+                                                int *child, int n, int m, int *procCounter, bool timing=false);
+
+
+    float prepareLowestDomainExchange(float *entry, float *mass, float *tempArray, int *lowestDomainListIndices,
+                                           int *lowestDomainListIndex, unsigned long *lowestDomainListKeys,
+                                           int *counter, bool timing=false);
+
+    float prepareLowestDomainExchangeMass(float *mass, float *tempArray, int *lowestDomainListIndices,
+                                               int *lowestDomainListIndex, unsigned long *lowestDomainListKeys,
+                                               int *counter, bool timing=false);
+
+    float updateLowestDomainListNodes(float *tempArray, float *entry, int *lowestDomainListIndices,
+                                           int *lowestDomainListIndex, unsigned long *lowestDomainListKeys,
+                                           unsigned long *sortedLowestDomainListKeys, int *counter,
+                                           bool timing=false);
+
+    float compLowestDomainListNodes(float *x, float *y, float *z, float *mass, int *lowestDomainListIndices,
+                                         int *lowestDomainListIndex, unsigned long *lowestDomainListKeys,
+                                         unsigned long *sortedLowestDomainListKeys, int *counter,
+                                         bool timing=false);
+
+    float zeroDomainListNodes(int *domainListIndex, int *domainListIndices,
+                              int *lowestDomainListIndex, int *lowestDomainListIndices,
+                              float *x, float *y, float *z,
+                              float *mass, bool timing=false);
+
+
+    float compLocalPseudoParticlesPar(float *x, float *y, float *z, float *mass, int *index, int n,
+                                      int *domainListIndices, int *domainListIndex,
+                                      int *lowestDomainListIndices, int *lowestDomainListIndex, bool timing=false);
+
+    float compDomainListPseudoParticlesPar(float *x, float *y, float *z, float *mass, int *child, int *index, int n,
+                                                int *domainListIndices, int *domainListIndex,
+                                                int *domainListLevels, int *lowestDomainListIndices,
+                                                int *lowestDomainListIndex, bool timing=false);
 
 };
 

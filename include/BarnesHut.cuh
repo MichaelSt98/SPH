@@ -45,7 +45,7 @@ private:
 
     float *h_mass;
 
-    unsigned long *h_domainListIndices;
+    int *h_domainListIndices;
     unsigned long *h_domainListKeys;
     int *h_domainListLevels;
     int *h_domainListIndex;
@@ -81,10 +81,16 @@ private:
 
     float *d_mass;
 
-    unsigned long *d_domainListIndices;
+    int *d_domainListIndices;
     unsigned long *d_domainListKeys;
     int *d_domainListLevels;
     int *d_domainListIndex;
+
+    int *d_lowestDomainListIndex;
+    int *d_lowestDomainListIndices;
+    unsigned long *d_lowestDomainListKeys;
+    unsigned long *d_sortedLowestDomainListKeys;
+    int *d_lowestDomainListCounter;
 
     float *d_tempArray;
     int *d_sortArray;
@@ -176,6 +182,7 @@ public:
     void globalizeBoundingBox();
 
     void sortArrayRadix(float *arrayToSort, float *tempArray, int *keyIn, int *keyOut, int n);
+    void sortArrayRadix(float *arrayToSort, float *tempArray, unsigned long *keyIn, unsigned long *keyOut, int n);
     //int gatherParticles(float *xAll, float *yAll, float *zAll, bool deviceToHost=false);
     int gatherParticles(bool velocities=true, bool deviceToHost=false);
 
@@ -184,6 +191,8 @@ public:
     void exchangeParticleEntry(int *sendLengths, int *receiveLengths, float *entry);
 
     void compPseudoParticlesParallel();
+
+    void symbolicForceParallel();
 };
 
 

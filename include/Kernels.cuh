@@ -30,8 +30,10 @@ __global__ void resetArraysKernel(int *mutex, float *x, float *y, float *z, floa
 
 __global__ void resetArraysParallelKernel(int *domainListIndex, unsigned long *domainListKeys,
                                           int *domainListIndices, int *domainListLevels,
-                                          float *tempArray, int *to_delete_cell, int *to_delete_leaf,
-                                          int n, int m);
+                                          int *lowestDomainListIndices, int *lowestDomainListIndex,
+                                          unsigned long *lowestDomainListKeys, unsigned long *sortedLowestDomainListKeys,
+                                          float *tempArray, int *to_delete_cell,
+                                          int *to_delete_leaf, int n, int m);
 
 /**
  * Kernel 1: computes bounding box around all bodies
@@ -39,9 +41,21 @@ __global__ void resetArraysParallelKernel(int *domainListIndex, unsigned long *d
 __global__ void computeBoundingBoxKernel(int *mutex, float *x, float *y, float *z, float *minX, float *maxX,
                                          float *minY, float *maxY, float *minZ, float *maxZ, int n, int blockSize);
 
-__global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels,
+/*__global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels,
                                       int *domainListIndices, int *count, int *start, int *child, int *index, int n,
-                                      int m);
+                                      int m);*/
+
+__global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domainListKeys, int *domainListLevels,
+                                      int *domainListIndices, float *x, float *y, float *z, float *mass, float *minX,
+                                      float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int *count,
+                                      int *start, int *child, int *index, int n, int m);
+
+__global__ void lowestDomainListNodesKernel(int *domainListIndices, int *domainListIndex,
+                                      unsigned long *domainListKeys,
+                                      int *lowestDomainListIndices, int *lowestDomainListIndex,
+                                      unsigned long *lowestDomainListKeys,
+                                      float *x, float *y, float *z, float *mass, int *count, int *start,
+                                      int *child, int n, int m, int *procCounter);
 
 __global__ void particlesPerProcessKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
@@ -105,15 +119,39 @@ __global__ void createDomainListKernel(SubDomainKeyTree *s, int maxLevel, unsign
 //TODO: implement
 __global__ void compPseudoParticlesParallelKernel();
 
-//TODO: implement
-__global__ void zeroDomainListNodesKernel();
+__global__ void prepareLowestDomainExchangeKernel(float *entry, float *mass, float *tempArray, int *lowestDomainListIndices,
+                                                  int *lowestDomainListIndex, unsigned long *lowestDomainListKeys,
+                                                  int *counter);
+
+__global__ void prepareLowestDomainExchangeMassKernel(float *mass, float *tempArray, int *lowestDomainListIndices,
+                                                      int *lowestDomainListIndex, unsigned long *lowestDomainListKeys,
+                                                      int *counter);
+
+__global__ void updateLowestDomainListNodesKernel(float *tempArray, float *entry, int *lowestDomainListIndices,
+                                                  int *lowestDomainListIndex, unsigned long *lowestDomainListKeys,
+                                                  unsigned long *sortedLowestDomainListKeys, int *counter);
+
+__global__ void compLowestDomainListNodesKernel(float *x, float *y, float *z, float *mass, int *lowestDomainListIndices,
+                                                int *lowestDomainListIndex, unsigned long *lowestDomainListKeys,
+                                                unsigned long *sortedLowestDomainListKeys, int *counter);
 
 //TODO: implement
-__global__ void compLocalPseudoParticlesParKernel();
+//__global__ void zeroDomainListNodesKernel();
+__global__ void zeroDomainListNodesKernel(int *domainListIndex, int *domainListIndices, int *lowestDomainListIndex,
+                                          int *lowestDomainListIndices, float *x, float *y, float *z, float *mass);
 
 //TODO: implement
-__global__ void compDomainListPseudoParticlesParKernel();
+//__global__ void compLocalPseudoParticlesParKernel();
+__global__ void compLocalPseudoParticlesParKernel(float *x, float *y, float *z, float *mass, int *index, int n,
+                                                  int *domainListIndices, int *domainListIndex,
+                                                  int *lowestDomainListIndices, int *lowestDomainListIndex);
 
+//TODO: implement
+//__global__ void compDomainListPseudoParticlesParKernel();
+__global__ void compDomainListPseudoParticlesParKernel(float *x, float *y, float *z, float *mass, int *child, int *index, int n,
+                                                       int *domainListIndices, int *domainListIndex,
+                                                       int *domainListLevels, int *lowestDomainListIndices,
+                                                       int *lowestDomainListIndex);
 
 __device__ bool isDomainListNode(unsigned long key, int maxLevel, int level, SubDomainKeyTree *s);
 
@@ -145,11 +183,18 @@ __global__ void collectSendIndicesKernel(int *sendIndices, float *entry, float *
                                    int sendCount);
 
 //TODO: implement
-__global__ void symbolicForce();
-
+//__global__ void symbolicForce();
+__global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float *z, int *domainListIndex,
+                                    unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
+                                    int *domainListCounter, float *sendIndices, int *index, int *particleCounter,
+                                    SubDomainKeyTree *s, int n, int m, float diam, float theta);
 
 //TODO: implement
-__global__ void compTheta();
+__global__ void compThetaKernel(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
+                                float *minZ, float *maxZ, int *domainListIndex, int *domainListCounter,
+                                unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
+                                int *relevantDomainListIndices, SubDomainKeyTree *s);
+//__global__ void compTheta();
 // go over the domain list nodes
 // if domain list node is not from my process
 // call symbolicForce()
@@ -182,7 +227,7 @@ __global__ void updateKernel(float *x, float *y, float *z, float *vx, float *vy,
 //TODO: not tested yet!
 __global__ void insertReceivedParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
                                         int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                                        float *minZ, float *maxZ, int n, int m);
+                                        float *minZ, float *maxZ, int *to_delete_leaf, int n, int m);
 
 //TODO: not tested yet!
 __global__ void repairTree(float *x, float *y, float *z, float *vx, float *vy, float *vz,

@@ -30,7 +30,7 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     MPI_Comm_rank(MPI_COMM_WORLD, &h_subDomainHandler->rank); //0;
     h_subDomainHandler->range = new unsigned long[3];
     h_subDomainHandler->range[0] = 0;
-    h_subDomainHandler->range[1] = 2305843009213693952UL; //4611686018427387904UL;// + 3872UL;
+    h_subDomainHandler->range[1] = 4611686018427387904UL + 3872UL; //2305843009213693952UL;
     h_subDomainHandler->range[2] = KEY_MAX;
     /*h_subDomainHandler->numProcesses =*/
     MPI_Comm_size(MPI_COMM_WORLD, &h_subDomainHandler->numProcesses); //2;
@@ -127,6 +127,7 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     gpuErrorcheck(cudaMalloc((void**)&d_domainListKeys, DOMAIN_LIST_SIZE*sizeof(unsigned long)));
     gpuErrorcheck(cudaMalloc((void**)&d_domainListLevels, DOMAIN_LIST_SIZE*sizeof(int)));
     gpuErrorcheck(cudaMalloc((void**)&d_domainListIndex, sizeof(int)));
+    gpuErrorcheck(cudaMalloc((void**)&d_lowestDomainListIndex, sizeof(int)));
 
     gpuErrorcheck(cudaMalloc((void**)&d_tempArray, 2*numParticles*sizeof(float)));
     gpuErrorcheck(cudaMalloc((void**)&d_sortArray, numParticles*sizeof(int)));
@@ -141,6 +142,12 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     gpuErrorcheck(cudaMalloc((void**)&d_domainListCounter, sizeof(int)));
     gpuErrorcheck(cudaMalloc((void**)&d_relevantDomainListIndices, DOMAIN_LIST_SIZE*sizeof(int)));
     gpuErrorcheck(cudaMalloc((void**)&d_sendIndices, numParticles*sizeof(int))); //TODO: numParticles or numNodes?
+    gpuErrorcheck(cudaMalloc((void**)&d_sendIndices, numParticles*sizeof(int))); //TODO: numParticles or numNodes?
+
+    gpuErrorcheck(cudaMalloc((void**)&d_lowestDomainListCounter, sizeof(int)));
+    gpuErrorcheck(cudaMalloc((void**)&d_lowestDomainListIndices, DOMAIN_LIST_SIZE*sizeof(int)));
+    gpuErrorcheck(cudaMalloc((void**)&d_lowestDomainListKeys, DOMAIN_LIST_SIZE*sizeof(unsigned long)));
+    gpuErrorcheck(cudaMalloc((void**)&d_sortedLowestDomainListKeys, DOMAIN_LIST_SIZE*sizeof(unsigned long)));
 
     gpuErrorcheck(cudaMalloc((void**)&d_x, numNodes*sizeof(float)));
     gpuErrorcheck(cudaMalloc((void**)&d_y, numNodes*sizeof(float)));
@@ -198,6 +205,7 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     cudaMemcpy(d_domainListKeys, h_domainListKeys, DOMAIN_LIST_SIZE*sizeof(unsigned long), cudaMemcpyHostToDevice);
     cudaMemcpy(d_domainListLevels, h_domainListLevels, DOMAIN_LIST_SIZE*sizeof(int), cudaMemcpyHostToDevice);
     gpuErrorcheck(cudaMemset(d_domainListIndex, 0, sizeof(int)));
+    gpuErrorcheck(cudaMemset(d_lowestDomainListIndex, 0, sizeof(int)));
 
     /*cudaMemcpy(d_x, h_x, 2*numParticles*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_y, h_y, 2*numParticles*sizeof(float), cudaMemcpyHostToDevice);
@@ -329,7 +337,9 @@ void BarnesHut::update(int step)
                         d_procCounter, d_procCounterTemp,timeKernels);
 
     KernelHandler.resetArraysParallel(d_domainListIndex, d_domainListKeys, d_domainListIndices,
-                                      d_domainListLevels, d_tempArray, numParticles, numNodes);
+                                      d_domainListLevels, d_lowestDomainListIndices, d_lowestDomainListIndex,
+                                      d_lowestDomainListKeys, d_sortedLowestDomainListKeys,
+                                      d_tempArray, d_to_delete_cell, d_to_delete_leaf, numParticles, numNodes);
 
     time_resetArrays[step] = elapsedTimeKernel;
     if (timeKernels) {
@@ -579,8 +589,14 @@ void BarnesHut::update(int step)
     elapsedTimeKernel = KernelHandler.buildTree(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
                       d_min_z, d_max_z, numParticlesLocal, numParticles, timeKernels); //numParticles -> numParticlesLocal
 
-    KernelHandler.buildDomainTree(d_domainListIndex, d_domainListKeys, d_domainListLevels, d_domainListIndices, d_count,
-                                  d_start, d_child, d_index, numParticlesLocal, numNodes); //TODO: numParticlesLocal or numParticles?
+    //KernelHandler.buildDomainTree(d_domainListIndex, d_domainListKeys, d_domainListLevels, d_domainListIndices, d_count,
+    //                            d_start, d_child, d_index, numParticlesLocal, numNodes); //TODO: numParticlesLocal or numParticles?
+
+
+    KernelHandler.buildDomainTree(d_domainListIndex, d_domainListKeys, d_domainListLevels, d_domainListIndices,
+                                  d_x, d_y, d_z, d_mass, d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z, d_count,
+                                  d_start, d_child, d_index, numParticlesLocal, numNodes, timeKernels);
+
 
     //KernelHandler.buildDomainTree(d_domainListIndex, d_domainListKeys, d_domainListLevels, d_count, d_start, d_child,
       //                            d_index, numParticles, numNodes);
@@ -610,13 +626,17 @@ void BarnesHut::update(int step)
     /*building tree*************************************************************************/
 
     /*CENTER OF MASS************************************************************************/
-    elapsedTimeKernel = KernelHandler.centreOfMass(d_x, d_y, d_z, d_mass, d_index, numParticles, timeKernels);
+    //elapsedTimeKernel = KernelHandler.centreOfMass(d_x, d_y, d_z, d_mass, d_index, numParticles, timeKernels);
+    compPseudoParticlesParallel(); //TODO: new!!!
 
     time_centreOfMass[step] = elapsedTimeKernel;
     if (timeKernels) {
         Logger(TIME) << "\tCenter of mass: " << elapsedTimeKernel << " ms";
     }
     /*center of mass************************************************************************/
+
+    MPI_Finalize();
+    exit(0);
 
     /*SORTING*******************************************************************************/
     elapsedTimeKernel = KernelHandler.sort(d_count, d_start, d_sorted, d_child, d_index, numParticles, timeKernels);
@@ -885,6 +905,22 @@ void BarnesHut::sortArrayRadix(float *arrayToSort, float *tempArray, int *keyIn,
 
     cudaFree(d_temp_storage);
 }
+void BarnesHut::sortArrayRadix(float *arrayToSort, float *tempArray, unsigned long *keyIn, unsigned long *keyOut, int n) {
+    // Determine temporary device storage requirements
+    void     *d_temp_storage = NULL;
+    size_t   temp_storage_bytes = 0;
+    gpuErrorcheck(cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
+                                                  keyIn, keyOut, arrayToSort, tempArray, n));
+    // Allocate temporary storage
+    cudaMalloc(&d_temp_storage, temp_storage_bytes);
+    gpuErrorcheck(cudaMalloc((void**)&d_temp_storage, temp_storage_bytes));
+
+    // Run sorting operation
+    gpuErrorcheck(cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
+                                                  keyIn, keyOut, arrayToSort, tempArray, n));
+
+    cudaFree(d_temp_storage);
+}
 //alternatively using Thrust:
 /*thrust::device_vector<int>  indices(N);
 thrust::sequence(indices.begin(),indices.end());
@@ -961,14 +997,14 @@ int BarnesHut::gatherParticles(bool velocities, bool deviceToHost) {
                     displacements, MPI_FLOAT, 0, MPI_COMM_WORLD);
     }
 
-    if (h_subDomainHandler->rank == 0) {
+    /*if (h_subDomainHandler->rank == 0) {
         Logger(INFO) << "FINISHED GATHERING PARTICLES (totalReceiveLength = " << totalReceiveLength << ")";
         for (int i=0; i<totalReceiveLength; i++) {
             if (i % 50000 == 0) {
                 Logger(INFO) << i << ": all_x = " << all_x[i] << " all_y = " << all_x[i] << " all_z = " << all_z[i];
             }
         }
-    }
+    }*/
 
     return totalReceiveLength;
 }
@@ -1012,28 +1048,163 @@ int BarnesHut::sendParticlesEntry(int *sendLengths, int *receiveLengths, float *
     KernelHandler.resetFloatArray(&entry[h_procCounter[h_subDomainHandler->rank]], 0, numParticles-h_procCounter[h_subDomainHandler->rank]); //resetFloatArrayKernel(float *array, float value, int n)
     KernelHandler.copyArray(&entry[h_procCounter[h_subDomainHandler->rank]], d_tempArray, receiveOffset);
 
-    Logger(INFO) << "New local particle amount: " << receiveOffset + h_procCounter[h_subDomainHandler->rank]
-                        << "  (receiveOffset = " << receiveOffset << ", procCounter = "
-                        << h_procCounter[h_subDomainHandler->rank] << ")";
+    //Logger(INFO) << "New local particle amount: " << receiveOffset + h_procCounter[h_subDomainHandler->rank]
+    //                    << "  (receiveOffset = " << receiveOffset << ", procCounter = "
+    //                    << h_procCounter[h_subDomainHandler->rank] << ")";
 
     return receiveOffset + h_procCounter[h_subDomainHandler->rank];
 }
 
 void BarnesHut::compPseudoParticlesParallel() {
+
+    KernelHandler.lowestDomainListNodes(d_domainListIndices, d_domainListIndex,
+                                        d_domainListKeys,
+                                        d_lowestDomainListIndices, d_lowestDomainListIndex,
+                                        d_lowestDomainListKeys,
+                                        d_x, d_y, d_z, d_mass, d_count, d_start,
+                                        d_child, numParticles, numNodes, d_procCounter, false);
+
     // zero domain list nodes (if needed)
     // ...
+    KernelHandler.zeroDomainListNodes(d_domainListIndex, d_domainListIndices, d_lowestDomainListIndex,
+                                      d_lowestDomainListIndices, d_x, d_y, d_z, d_mass, false); //TODO: needed
 
     // compute local pseudo particles (not for domain list nodes, at least not for the upper domain list nodes)
     // ...
+    KernelHandler.compLocalPseudoParticlesPar(d_x, d_y, d_z, d_mass, d_index, numParticles, d_domainListIndices,
+                                              d_domainListIndex, d_lowestDomainListIndices, d_lowestDomainListIndex,
+                                              false);
+
+    int domainListIndex;
+    int lowestDomainListIndex;
+    /* x ---------------------------------------------------------------------------------------------- */
+    cudaMemcpy(&domainListIndex, d_domainListIndex, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(&lowestDomainListIndex, d_lowestDomainListIndex, sizeof(int), cudaMemcpyDeviceToHost);
+    Logger(INFO) << "domainListIndex: " << domainListIndex << " | lowestDomainListIndex: " << lowestDomainListIndex;
+    gpuErrorcheck(cudaMemset(d_lowestDomainListCounter, 0, sizeof(int)));
+    //prepare lowest domain list nodes (__global__ void prepareLowestDomainExchangeKernel())
+
+
+    KernelHandler.prepareLowestDomainExchange(d_x, d_mass, d_tempArray, d_lowestDomainListIndices,
+                                                    d_lowestDomainListIndex, d_lowestDomainListKeys,
+                                                    d_lowestDomainListCounter, false);
+
+    //sort using cub
+    sortArrayRadix(d_tempArray, &d_tempArray[DOMAIN_LIST_SIZE], d_lowestDomainListKeys, d_sortedLowestDomainListKeys,
+                   domainListIndex);
+
 
     // share among processes
-    // MPI_Allreduce(&moments, &global_moments, 3*pLength, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
-    // MPI_Allreduce(&masses, &global_masses, pLength, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
-    // ...
+    MPI_Allreduce(MPI_IN_PLACE, &d_tempArray[DOMAIN_LIST_SIZE], domainListIndex, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
 
-    // update domain list nodes
+    //Logger(INFO) << "After Allreduce ...";
+    //KernelHandler.sendParticles(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
+    //                            d_min_z, d_max_z, numParticlesLocal, numNodes, d_subDomainHandler, d_procCounter, d_tempArray,
+    //                            d_sortArray, d_sortArrayOut);
+
+    gpuErrorcheck(cudaMemset(d_lowestDomainListCounter, 0, sizeof(int)));
+    // update domain list nodes (__global__ void updateLowestDomainListNodesKernel())
+    KernelHandler.updateLowestDomainListNodes(&d_tempArray[DOMAIN_LIST_SIZE], d_x, d_lowestDomainListIndices,
+                                              d_lowestDomainListIndex, d_lowestDomainListKeys,
+                                              d_sortedLowestDomainListKeys, d_lowestDomainListCounter,
+                                              false);
+
+    /* y ---------------------------------------------------------------------------------------------- */
+
+    cudaMemcpy(&domainListIndex, d_domainListIndex, sizeof(int), cudaMemcpyDeviceToHost);
+    //Logger(INFO) << "domainListIndex: " << domainListIndex;
+    gpuErrorcheck(cudaMemset(d_lowestDomainListCounter, 0, sizeof(int)));
+    //prepare lowest domain list nodes (__global__ void prepareLowestDomainExchangeKernel())
+
+
+    KernelHandler.prepareLowestDomainExchange(d_y, d_mass, d_tempArray, d_lowestDomainListIndices,
+                                              d_lowestDomainListIndex, d_lowestDomainListKeys,
+                                              d_lowestDomainListCounter, false);
+
+    //sort using cub
+    sortArrayRadix(d_tempArray, &d_tempArray[DOMAIN_LIST_SIZE], d_lowestDomainListKeys, d_sortedLowestDomainListKeys,
+                   domainListIndex);
+
+
+    // share among processes
+    MPI_Allreduce(MPI_IN_PLACE, &d_tempArray[DOMAIN_LIST_SIZE], domainListIndex, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+
+
+    gpuErrorcheck(cudaMemset(d_lowestDomainListCounter, 0, sizeof(int)));
+    // update domain list nodes (__global__ void updateLowestDomainListNodesKernel())
+    KernelHandler.updateLowestDomainListNodes(&d_tempArray[DOMAIN_LIST_SIZE], d_y, d_lowestDomainListIndices,
+                                              d_lowestDomainListIndex, d_lowestDomainListKeys,
+                                              d_sortedLowestDomainListKeys, d_lowestDomainListCounter,
+                                              false);
+
+    /* z ---------------------------------------------------------------------------------------------- */
+
+    cudaMemcpy(&domainListIndex, d_domainListIndex, sizeof(int), cudaMemcpyDeviceToHost);
+    //Logger(INFO) << "domainListIndex: " << domainListIndex;
+    gpuErrorcheck(cudaMemset(d_lowestDomainListCounter, 0, sizeof(int)));
+    //prepare lowest domain list nodes (__global__ void prepareLowestDomainExchangeKernel())
+
+
+    KernelHandler.prepareLowestDomainExchange(d_z, d_mass, d_tempArray, d_lowestDomainListIndices,
+                                              d_lowestDomainListIndex, d_lowestDomainListKeys,
+                                              d_lowestDomainListCounter, false);
+
+    //sort using cub
+    sortArrayRadix(d_tempArray, &d_tempArray[DOMAIN_LIST_SIZE], d_lowestDomainListKeys, d_sortedLowestDomainListKeys,
+                   domainListIndex);
+
+
+    // share among processes
+    MPI_Allreduce(MPI_IN_PLACE, &d_tempArray[DOMAIN_LIST_SIZE], domainListIndex, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+
+
+    gpuErrorcheck(cudaMemset(d_lowestDomainListCounter, 0, sizeof(int)));
+    // update domain list nodes (__global__ void updateLowestDomainListNodesKernel())
+    KernelHandler.updateLowestDomainListNodes(&d_tempArray[DOMAIN_LIST_SIZE], d_z, d_lowestDomainListIndices,
+                                              d_lowestDomainListIndex, d_lowestDomainListKeys,
+                                              d_sortedLowestDomainListKeys, d_lowestDomainListCounter,
+                                              false);
+
+    /* m ---------------------------------------------------------------------------------------------- */
+
+    cudaMemcpy(&domainListIndex, d_domainListIndex, sizeof(int), cudaMemcpyDeviceToHost);
+    //Logger(INFO) << "domainListIndex: " << domainListIndex;
+    gpuErrorcheck(cudaMemset(d_lowestDomainListCounter, 0, sizeof(int)));
+    //prepare lowest domain list nodes (__global__ void prepareLowestDomainExchangeKernel())
+
+
+    KernelHandler.prepareLowestDomainExchangeMass(d_mass, d_tempArray, d_lowestDomainListIndices,
+                                              d_lowestDomainListIndex, d_lowestDomainListKeys,
+                                              d_lowestDomainListCounter, false);
+
+    //sort using cub
+    sortArrayRadix(d_tempArray, &d_tempArray[DOMAIN_LIST_SIZE], d_lowestDomainListKeys, d_sortedLowestDomainListKeys,
+                   domainListIndex);
+
+
+    // share among processes
+    MPI_Allreduce(MPI_IN_PLACE, &d_tempArray[DOMAIN_LIST_SIZE], domainListIndex, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+
+
+    gpuErrorcheck(cudaMemset(d_lowestDomainListCounter, 0, sizeof(int)));
+    // update domain list nodes (__global__ void updateLowestDomainListNodesKernel())
+    KernelHandler.updateLowestDomainListNodes(&d_tempArray[DOMAIN_LIST_SIZE], d_mass, d_lowestDomainListIndices,
+                                              d_lowestDomainListIndex, d_lowestDomainListKeys,
+                                              d_sortedLowestDomainListKeys, d_lowestDomainListCounter,
+                                              false);
+
+    //end: for all entries! //TODO: don't forget to divide by the mass
+    //TODO: check if it works and then do it for all of them */
+    KernelHandler.compLowestDomainListNodes(d_x, d_y, d_z, d_mass, d_lowestDomainListIndices, d_lowestDomainListIndex,
+                                            d_lowestDomainListKeys, d_sortedLowestDomainListKeys,
+                                            d_lowestDomainListCounter, false);
+
+
     // compute for the rest of the domain list nodes the values
     // ...
+    KernelHandler.compDomainListPseudoParticlesPar(d_x, d_y, d_z, d_mass, d_child, d_index, numParticles, d_domainListIndices,
+                                                    d_domainListIndex, d_domainListLevels, d_lowestDomainListIndices, d_lowestDomainListIndex,
+                                                    false);
 }
 
 void BarnesHut::exchangeParticleEntry(int *sendLengths, int *receiveLengths, float *entry) {
@@ -1074,13 +1245,13 @@ void BarnesHut::symbolicForceParallel() {
     //for ...
     //      symbolicForce()
 
-    cudaMemcpy(&h_procCounter, d_procCounter, h_subDomainHandler->numProcessessizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_procCounter, d_procCounter, h_subDomainHandler->numProcesses*sizeof(int), cudaMemcpyDeviceToHost);
 
     int sendCount;
     cudaMemcpy(&sendCount, d_domainListCounter, sizeof(int), cudaMemcpyDeviceToHost);
 
-    cudaMemcpy(&d_to_delete_leaf[0], h_procCounter[h_subDomainHandler->rank], sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(&d_to_delete_leaf[1], h_procCounter[h_subDomainHandler->rank] + sendCount, sizeof(int),
+    cudaMemcpy(&d_to_delete_leaf[0], &h_procCounter[h_subDomainHandler->rank], sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(&d_to_delete_leaf[1], &h_procCounter[h_subDomainHandler->rank] + sendCount, sizeof(int),
                cudaMemcpyHostToDevice);
 
     int *sendLengths;
@@ -1159,7 +1330,7 @@ void BarnesHut::symbolicForceParallel() {
 
     //actual (local) force
     KernelHandler.computeForces(d_x, d_y, d_z, d_vx, d_vy, d_vz, d_ax, d_ay, d_az, d_mass, d_sorted, d_child, d_min_x,
-                                d_max_x, numParticlesLocal, parameters.gravity, timeKernels); //TODO: numParticlesLocal or numParticles?
+                                d_max_x, numParticlesLocal, parameters.gravity, false); //TODO: numParticlesLocal or numParticles?
 
     // repairTree
 
