@@ -13,6 +13,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <climits> // for ulong_max
+#include <algorithm>
 //#define KEY_MAX ULONG_MAX
 
 #define TESTING 0
@@ -192,7 +193,7 @@ public:
 
     void compPseudoParticlesParallel();
 
-    void symbolicForceParallel();
+    void parallelForce();
 };
 
 

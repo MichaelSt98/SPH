@@ -304,8 +304,11 @@ __global__ void sendParticlesKernel(float *x, float *y, float *z, float *mass, i
       //  printf("[rank %i] procCounter[%i] = %i\n", s->rank, proc, procCounter[proc]);
     //}
 
-    for (int i=DOMAIN_LIST_SIZE; i<(DOMAIN_LIST_SIZE + 8); i++) {
-        printf("[rank %i] tempArray[%i] = %f\n", s->rank, i, tempArray[i]);
+    for (int i=0; i<1000; i++) {
+        if (i % 100 == 0) {
+            printf("[rank %i] tempArray[%i] = %f\n", s->rank, i, tempArray[i]);
+            printf("[rank %i] x[%i] = %f\n", s->rank, i+n, x[i+n]);
+        }
         //printf("[rank %i] mass[%i] = %f\n", s->rank, i, mass[i]);
     }
     //for (int i=0; i<5; i++) {
@@ -549,7 +552,7 @@ __global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domai
         childIndex = 0;
         //temp = 0;
         for (int j = 0; j < domainListLevels[i]; j++) {
-            path[j] = (int) (domainListKeys[i] >> (21 * 3 - 3 * (j + 1)) & (int) 7);
+            path[j] = (int) (domainListKeys[i] >> (21 * 3 - 3 * (j + 1)) & (int)7);
             //printf("\tson: %i\n", path[j]);
             temp = childIndex;
             childIndex = child[8*childIndex + path[j]];
@@ -564,6 +567,7 @@ __global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domai
                     domainListIndices[domainListCounter] = childIndex; //cell;
                     domainListCounter++;
                 } else {
+                    //TODO: not tested yet!
                     //child is a leaf --> insert a cell in between
                     //printf("domain: already existing!\n");
                     int cell = atomicAdd(index, 1);
@@ -656,14 +660,22 @@ __global__ void lowestDomainListNodesKernel(int *domainListIndices, int *domainL
         for (int i=0; i<8; i++) {
             childIndex = child[8 * domainIndex + i];
             if (childIndex != -1) {
-                if (childIndex > n) {
+                if (childIndex >= n) {
                     for (int k=0; k<*domainListIndex; k++) {
-                        //printf("HERE: childIndex: %i  domainListIndices: %i\n", childIndex, domainListIndices[k]);
+                        if (domainListKeys[bodyIndex + offset] == 0) {
+                            //printf("HERE: domainIndex = %i  childIndex: %i  domainListIndices: %i\n", domainIndex,
+                            //       childIndex, domainListIndices[k]);
+                        }
                         if (childIndex == domainListIndices[k]) {
+                            //printf("HERE: domainIndex = %i  childIndex: %i  domainListIndices: %i\n", domainIndex,
+                            //       childIndex, domainListIndices[k]);
                             lowestDomainListNode = false;
                             //printf("HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
                             break;
                         }
+                    }
+                    if (lowestDomainListNode) {
+                        break;
                     }
                 }
             }
@@ -673,6 +685,7 @@ __global__ void lowestDomainListNodesKernel(int *domainListIndices, int *domainL
             lowestDomainIndex = atomicAdd(lowestDomainListIndex, 1);
             lowestDomainListIndices[lowestDomainIndex] = domainIndex;
             lowestDomainListKeys[lowestDomainIndex] = domainListKeys[bodyIndex + offset];
+            //printf("Adding lowest domain list node #%i (key = %lu)\n", lowestDomainIndex, lowestDomainListKeys[lowestDomainIndex]);
         }
 
         offset += stride;
@@ -796,11 +809,13 @@ __device__ unsigned long getParticleKeyPerParticle(float x, float y, float z,
             max_x = 0.5 * (min_x+max_x);
         }
         else { min_x = 0.5 * (min_x+max_x); }
+
         if (y < 0.5 * (min_y+max_y)) {
             sonBox += 2;
             max_y = 0.5 * (min_y + max_y);
         }
         else { min_y = 0.5 * (min_y + max_y); }
+
         if (z < 0.5 * (min_z+max_z)) {
             sonBox += 4;
             max_z = 0.5 * (min_z + max_z);
@@ -919,9 +934,9 @@ __global__ void createDomainListKernel(SubDomainKeyTree *s, int maxLevel, unsign
 
     int level = 0;
 
-    domainListKeys[*index] = key2test;
-    levels[*index] = level;
-    *index += 1;
+    //domainListKeys[*index] = key2test;
+    //levels[*index] = level;
+    //*index += 1;
     level++;
 
     while (key2test < keyMax) {
@@ -930,9 +945,11 @@ __global__ void createDomainListKernel(SubDomainKeyTree *s, int maxLevel, unsign
         //key2Char(key2test & (~0UL << (3 * (maxLevel - level + 1))), 21, keyAsChar);
         //printf("ke2test shifted: %lu = %s level: %i\n", key2test & (~0UL << (3 * (maxLevel - level + 1))), keyAsChar, level-1);
         if (isDomainListNode(key2test & (~0UL << (3 * (maxLevel - level + 1))), maxLevel, level-1, s)) {
+            //if (level > 0) {
             domainListKeys[*index] = key2test;
             levels[*index] = level;
             *index += 1;
+            //}
             if (isDomainListNode(key2test, maxLevel, level, s)) {
                 level++;
             }
@@ -949,7 +966,7 @@ __global__ void createDomainListKernel(SubDomainKeyTree *s, int maxLevel, unsign
     //printf("Index: %i\n", *index);
     for (int i=0; i < *index; i++) {
         key2Char(domainListKeys[i], 21, keyAsChar);
-        printf("domainListKeys[%i] = %lu = %s (level: %i)\n", i, domainListKeys[i], keyAsChar, levels[i]);
+        //printf("domainListKeys[%i] = key: %lu = %s (level: %i)\n", i, domainListKeys[i], keyAsChar, levels[i]);
         /*for (int j=0; j<levels[i]; j++) {
             path[j] = (int)(domainListKeys[i] >> (maxLevel*3 - 3*(j+1)) & (int)7);
             printf("\tson: %i\n", path[j]);
@@ -996,13 +1013,18 @@ __global__ void prepareLowestDomainExchangeKernel(float *entry, float *mass, flo
     while ((bodyIndex + offset) < *lowestDomainListIndex) {
         lowestDomainIndex = lowestDomainListIndices[bodyIndex + offset];
         if (lowestDomainIndex >= 0) {
-            index = atomicAdd(counter, 1);
-            tempArray[index] = entry[lowestDomainIndex]; //* mass[lowestDomainIndex];
+            //index = atomicAdd(counter, 1);
+            tempArray[bodyIndex+offset] = entry[lowestDomainIndex]; //* mass[lowestDomainIndex];
             //printf("index: %i  lowestDomainIndex: %i  tempArray = %f (entry = %f, mass = %f)\n", index, lowestDomainIndex, tempArray[index],
             //       entry[lowestDomainIndex], mass[lowestDomainIndex]);
         }
         offset += stride;
     }
+
+    //serial solution
+    /*for (int i=0; i<*lowestDomainListIndex; i++) {
+        tempArray[i] = entry[lowestDomainListIndices[i]];
+    }*/
 }
 
 //TODO: not tested yet
@@ -1021,11 +1043,17 @@ __global__ void prepareLowestDomainExchangeMassKernel(float *mass, float *tempAr
     while ((bodyIndex + offset) < *lowestDomainListIndex) {
         lowestDomainIndex = lowestDomainListIndices[bodyIndex + offset];
         if (lowestDomainIndex >= 0) {
-            index = atomicAdd(counter, 1);
-            tempArray[index] = mass[lowestDomainIndex];
+            //index = atomicAdd(counter, 1);
+            tempArray[bodyIndex + offset] = mass[lowestDomainIndex];
         }
         offset += stride;
     }
+
+    //serial solution
+    /*for (int i=0; i<*lowestDomainListIndex; i++) {
+        tempArray[i] = mass[lowestDomainListIndices[i]];
+    }*/
+
 }
 
 //TODO: implement
@@ -1040,12 +1068,14 @@ __global__ void updateLowestDomainListNodesKernel(float *tempArray, float *entry
     //int lowestDomainIndex;
     int originalIndex = -1;
 
-    while ((bodyIndex + offset) < *lowestDomainListIndex-1) {
+    while ((bodyIndex + offset) < *lowestDomainListIndex) {
         //printf("sortedLowestDomainListKeys[%i] = %i\n", bodyIndex + offset, sortedLowestDomainListKeys[bodyIndex + offset]);
         for (int i=0; i<*lowestDomainListIndex; i++) {
             //printf("lowestDomainListKeys[%i] = %lu\n", i, lowestDomainListKeys[i]);
             if (sortedLowestDomainListKeys[bodyIndex + offset] == lowestDomainListKeys[i]) {
+                //printf("original index %i for key: %lu\n", i, sortedLowestDomainListKeys[bodyIndex + offset]);
                 originalIndex = i;
+                //break; //TODO: problem since not deterministic (keine eindeutigen Keys ...)
             }
         }
 
@@ -1081,7 +1111,8 @@ __global__ void compLowestDomainListNodesKernel(float *x, float *y, float *z, fl
             z[lowestDomainIndex] /= mass[lowestDomainIndex];
         }
 
-        //printf("lowestDomainIndex = %i x = (%f, %f, %f)\n", bodyIndex + offset, x[lowestDomainIndex], y[lowestDomainIndex], z[lowestDomainIndex]);
+        //printf("lowestDomainIndex = %i x = (%f, %f, %f) m = %f (key: %lu)\n", lowestDomainIndex, x[lowestDomainIndex],
+          //     y[lowestDomainIndex], z[lowestDomainIndex], mass[lowestDomainIndex], lowestDomainListKeys[bodyIndex + offset]);
 
         offset += stride;
     }
@@ -1192,11 +1223,11 @@ __global__ void compDomainListPseudoParticlesParKernel(float *x, float *y, float
             compute = true;
             domainIndex = domainListIndices[bodyIndex + offset];
             for (int i=0; i<*lowestDomainListIndex-1; i++) {
-                if (domainIndex = lowestDomainListIndices[i]) {
+                if (domainIndex == lowestDomainListIndices[i]) {
                     compute = false;
+                    //printf("i = %i\n", i);
                 }
             }
-            //printf("domainIndex = %i | domainListLevels[%i] = %i | level = %i\n", domainIndex, bodyIndex + offset, domainListLevels[bodyIndex + offset], level);
             if (compute && domainListLevels[bodyIndex + offset] == level) {
                 // do the calculation
                 for (int i=0; i<8; i++) {
@@ -1206,12 +1237,14 @@ __global__ void compDomainListPseudoParticlesParKernel(float *x, float *y, float
                     mass[domainIndex] += mass[child[8*domainIndex + i]];
                 }
 
-                x[domainIndex] /= mass[domainIndex];
-                y[domainIndex] /= mass[domainIndex];
-                z[domainIndex] /= mass[domainIndex];
+                if (mass[domainIndex] != 0) {
+                    x[domainIndex] /= mass[domainIndex];
+                    y[domainIndex] /= mass[domainIndex];
+                    z[domainIndex] /= mass[domainIndex];
+                }
 
-                printf("domain node: key = %lu x = (%f, %f, %f) m = %f\n", domainListIndices[bodyIndex + offset],
-                       x[domainIndex], y[domainIndex], z[domainIndex], mass[domainIndex]);
+                //printf("domain node: key = %lu x = (%f, %f, %f) m = %f\n", domainListIndices[bodyIndex + offset],
+                  //     x[domainIndex], y[domainIndex], z[domainIndex], mass[domainIndex]);
             }
             offset += stride;
         }
@@ -1493,18 +1526,24 @@ __global__ void collectSendIndicesKernel(int *sendIndices, float *entry, float *
     int offset = 0;
     int insertIndex;
 
+    //TODO: using insertIndex or bodyIndex+offset?
     while ((bodyIndex + offset) < sendCount) {
-        insertIndex = atomicAdd(domainListCounter, 1);
-        tempArray[insertIndex] = entry[sendIndices[bodyIndex + offset]];
+        //insertIndex = atomicAdd(domainListCounter, 1);
+        tempArray[bodyIndex + offset] = entry[sendIndices[bodyIndex + offset]];
+        if ((bodyIndex + offset) % 5000 == 0) {
+            printf("entry = %f | index = %i | sendIndex = %i (sendCount = %i)\n", entry[sendIndices[bodyIndex + offset]], bodyIndex + offset, sendIndices[bodyIndex + offset], sendCount);
+        }
 
         offset += stride;
     }
 }
 
 //TODO: not tested yet
-__global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float *z, int *domainListIndex,
+// TODO: How to (re)calculate diam (in dependence of the level)
+__global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
+                                    float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
                               unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
-                              int *domainListCounter, float *sendIndices, int *index, int *particleCounter,
+                              int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
                               SubDomainKeyTree *s, int n, int m, float diam, float theta) {
 
     int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
@@ -1513,22 +1552,34 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
     float r;
     int insertIndex;
     bool insert;
+    int level;
+    int childIndex;
 
     while ((bodyIndex + offset) < *index) {
         insert = true;
         if ((bodyIndex + offset) < particleCounter[s->rank] || (bodyIndex + offset) > n) {
-            r = smallestDistance(x, y, z, relevantIndex, bodyIndex + offset);
-            if (diam >= (theta * r)) {
+            r = smallestDistance(x, y, z, bodyIndex + offset, relevantIndex); //relevantIndex, bodyIndex + offset);
+            level = getTreeLevel(bodyIndex + offset, child, x, y, z, minX, maxX, minY, maxY, minZ, maxZ);
+            //printf("level: %i\n", level);
+            if (level == 0) {
+                printf("level = 0\n");
+            }
+            if ((powf(0.5, level) * diam) >= (theta * r) && level>=0) {
+                //TODO: insert cell itself or children?
+
+                //TODO: inserting cell itself
                 //check whether node is already within the indices to be sent
                 for (int i=0; i<*domainListCounter; i++) {
                     if ((bodyIndex + offset) == sendIndices[i]) {
                         insert = false;
+                        //printf("already saved to be sent!\n");
                     }
                 }
                 //check whether node is a domain list node
                 for (int i=0; i<*domainListIndex; i++) {
                     if ((bodyIndex + offset) == domainListIndices[i]) {
                         insert = false;
+                        //printf("domain list nodes do not need to be sent!\n");
                     }
                 }
                 if (insert) {
@@ -1536,6 +1587,30 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
                     insertIndex = atomicAdd(domainListCounter, 1);
                     sendIndices[insertIndex] = bodyIndex + offset;
                 }
+
+                //TODO: inserting children
+                /*for (int i=0; i<8; i++) {
+                    childIndex = child[8*(bodyIndex + offset) + i];
+                    //check whether node is already within the indices to be sent
+                    for (int i = 0; i < *domainListCounter; i++) {
+                        if (childIndex == sendIndices[i]) {
+                            insert = false;
+                            //printf("already saved to be sent!\n");
+                        }
+                    }
+                    //check whether node is a domain list node
+                    for (int i = 0; i < *domainListIndex; i++) {
+                        if (childIndex == domainListIndices[i]) {
+                            insert = false;
+                            //printf("domain list nodes do not need to be sent!\n");
+                        }
+                    }
+                    if (insert && childIndex != -1) {
+                        //add to indices to be sent
+                        insertIndex = atomicAdd(domainListCounter, 1);
+                        sendIndices[insertIndex] = childIndex;
+                    }
+                }*/
             }
         }
         else {
@@ -1574,6 +1649,7 @@ __global__ void compThetaKernel(float *x, float *y, float *z, float *minX, float
         if (key2proc(key, s) != s->rank) {
             domainIndex = atomicAdd(domainListCounter, 1);
             relevantDomainListIndices[domainIndex] = bodyIndex;
+            printf("relevant domain list index: %i\n", bodyIndex);
         }
 
         offset += stride;
@@ -1610,7 +1686,7 @@ __global__ void updateKernel(float *x, float *y, float *z, float *vx, float *vy,
  * Mark with to_delete_cell and to_delete_leaf
  */
 //TODO: not tested yet!
-__global__ void insertReceivedParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
+__global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                 int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                 float *minZ, float *maxZ, int *to_delete_leaf, int n, int m) {
 
@@ -1635,9 +1711,33 @@ __global__ void insertReceivedParticles(float *x, float *y, float *z, float *mas
 
     offset = 0;
 
-    while ((bodyIndex + offset) < to_delete_leaf[1] && (bodyIndex + offset) >= to_delete_leaf[0]) {
+    bodyIndex += to_delete_leaf[0]; //TODO: would be possible but shouldnt change something
 
-        if (newBody) {
+    //if ((bodyIndex + offset) % 10000 == 0) {
+    //    printf("index = %i x = (%f, %f, %f)\n", bodyIndex + offset, x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset]);
+    //}
+
+    //if ((bodyIndex + offset) % 20000 == 0) {
+    //    printf("to_delete_leaf = (%i, %i)\n", to_delete_leaf[0], to_delete_leaf[1]);
+    //}
+
+    while ((bodyIndex + offset) < to_delete_leaf[1] && (bodyIndex + offset) > to_delete_leaf[0]) {
+
+
+        if ((bodyIndex + offset) == (to_delete_leaf[0]+1)) {
+            printf("dunno ... index = %i x = (%f, %f, %f) (index = %i) to_delete_leaf = (%i, %i)\n", bodyIndex + offset, x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset], *index, to_delete_leaf[0], to_delete_leaf[1]);
+        }
+        if ((bodyIndex + offset) == (to_delete_leaf[1]-1)) {
+            printf("dunno ... index = %i x = (%f, %f, %f) (index = %i) to_delete_leaf = (%i, %i)\n", bodyIndex + offset, x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset], *index, to_delete_leaf[0], to_delete_leaf[1]);
+        }
+        //debugging
+        if ((bodyIndex + offset) % 100 == 0) {
+            printf("index = %i x = (%f, %f, %f) (index = %i) to_delete_leaf = (%i, %i)\n", bodyIndex + offset, x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset], *index, to_delete_leaf[0], to_delete_leaf[1]);
+        }
+        //debugging
+        offset += stride;
+
+        /*if (newBody) {
 
             newBody = false;
 
@@ -1732,7 +1832,7 @@ __global__ void insertReceivedParticles(float *x, float *y, float *z, float *mas
                     child[locked] = bodyIndex + offset;
                 }
                 else {
-                    if (childIndex >= n) {
+                    if (childIndex >= to_delete_leaf[1]) {
                         printf("ATTENTION!\n");
                     }
                     int patch = 8 * m; //8*n
@@ -1761,7 +1861,7 @@ __global__ void insertReceivedParticles(float *x, float *y, float *z, float *mas
 
                         child[8 * cell + childPath] = childIndex;
 
-                        start[cell] = -1;
+                        start[cell] = -1; //TODO: needed?
 
                         // insert new particle
                         temp = cell;
@@ -1807,12 +1907,12 @@ __global__ void insertReceivedParticles(float *x, float *y, float *z, float *mas
                 newBody = true;
             }
         }
-        __syncthreads();
+        __syncthreads();*/
     }
 }
 
 //TODO: not tested yet!
-__global__ void repairTree(float *x, float *y, float *z, float *vx, float *vy, float *vz,
+__global__ void repairTreeKernel(float *x, float *y, float *z, float *vx, float *vy, float *vz,
                            float *ax, float *ay, float *az, float *mass, int *count, int *start,
                            int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                            float *minZ, float *maxZ, int *to_delete_cell, int *to_delete_leaf,
@@ -1868,6 +1968,42 @@ __global__ void repairTree(float *x, float *y, float *z, float *vx, float *vy, f
         offset += stride;
     }
 
+}
 
+
+__device__ int getTreeLevel(int index, int *child, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
+                            float *maxY, float *minZ, float *maxZ) {
+
+    unsigned long key = getParticleKeyPerParticle(x[index], y[index], z[index], minX, maxX, minY, maxY, minZ, maxZ, 21);
+    //int proc = key2proc(key, s);
+    int level = 0; //TODO: initialize with 0 or 1?
+    int childIndex;
+
+    int path[21];
+    for (int i=0; i<21; i++) {
+        path[i] = (int) (key >> (21*3 - 3 * (i + 1)) & (int)7);
+        if (path[i] > 7) {
+            printf("SUICIDE!\n");
+        }
+    }
+
+    childIndex = child[path[0]];
+
+    //TODO: where to put level++?
+    for (int i=1; i<21; i++) {
+        //if (childIndex == -1) {
+        //    printf("WHY?\n");
+        //}
+        level++;
+        if (childIndex == index) {
+            //printf("YEAH!\n");
+            return level;
+        }
+        childIndex = child[8*childIndex + path[i]];
+        //level++;
+    }
+
+    printf("FUCK: level = -1 (index = %i)\n", index);
+    return -1;
 
 }

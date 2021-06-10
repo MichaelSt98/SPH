@@ -101,9 +101,6 @@ public:
                  float dt, float d, bool timing=false);
 
 
-    float collectSendIndices(int *sendIndices, float *entry, float *tempArray, int *domainListCounter,
-                                             int sendCount, bool timing=false);
-
 
     float lowestDomainListNodes(int *domainListIndices, int *domainListIndex, unsigned long *domainListKeys,
                                                 int *lowestDomainListIndices, int *lowestDomainListIndex,
@@ -144,6 +141,35 @@ public:
                                                 int *domainListIndices, int *domainListIndex,
                                                 int *domainListLevels, int *lowestDomainListIndices,
                                                 int *lowestDomainListIndex, bool timing=false);
+
+
+
+
+
+    float collectSendIndices(int *sendIndices, float *entry, float *tempArray, int *domainListCounter,
+                                             int sendCount, bool timing=false);
+
+    float symbolicForce(int relevantIndex, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
+                                        float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
+                                        unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
+                                        int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
+                                        SubDomainKeyTree *s, int n, int m, float diam, float theta, bool timing=false);
+
+    float compTheta(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
+                                    float *minZ, float *maxZ, int *domainListIndex, int *domainListCounter,
+                                    unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
+                                    int *relevantDomainListIndices, SubDomainKeyTree *s, bool timing=false);
+
+    float insertReceivedParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
+                                            int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                            float *minZ, float *maxZ, int *to_delete_leaf, int n, int m, bool timing=false);
+
+
+    float repairTree(float *x, float *y, float *z, float *vx, float *vy, float *vz,
+                               float *ax, float *ay, float *az, float *mass, int *count, int *start,
+                               int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                               float *minZ, float *maxZ, int *to_delete_cell, int *to_delete_leaf,
+                               int *domainListIndices, int n, int m, bool timing=false);
 
 };
 

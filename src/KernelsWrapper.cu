@@ -531,32 +531,6 @@ float KernelsWrapper::update(float *x, float *y, float *z, float *vx, float *vy,
 
 }
 
-float KernelsWrapper::collectSendIndices(int *sendIndices, float *entry, float *tempArray, int *domainListCounter,
-                                        int sendCount, bool timing) {
-
-    float elapsedTime = 0.f;
-    if (timing) {
-        cudaEvent_t start_t, stop_t; // used for timing
-        cudaEventCreate(&start_t);
-        cudaEventCreate(&stop_t);
-        cudaEventRecord(start_t, 0);
-
-        collectSendIndicesKernel<<< gridSize, blockSize >>>(sendIndices, entry, tempArray, domainListCounter,
-                                                            sendCount);
-
-        cudaEventRecord(stop_t, 0);
-        cudaEventSynchronize(stop_t);
-        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
-        cudaEventDestroy(start_t);
-        cudaEventDestroy(stop_t);
-    }
-    else {
-        collectSendIndicesKernel<<< gridSize, blockSize >>>(sendIndices, entry, tempArray, domainListCounter,
-                                                            sendCount);
-    }
-    return elapsedTime;
-
-}
 
 float KernelsWrapper::lowestDomainListNodes(int *domainListIndices, int *domainListIndex,
                                  unsigned long *domainListKeys,
@@ -608,7 +582,7 @@ float KernelsWrapper::prepareLowestDomainExchange(float *entry, float *mass, flo
         cudaEventRecord(start_t, 0);
 
         //kernel call
-        prepareLowestDomainExchangeKernel<<< gridSize, blockSize >>> (entry, mass, tempArray, lowestDomainListIndices, lowestDomainListIndex,
+        prepareLowestDomainExchangeKernel<<< /*1, 1*/gridSize, blockSize >>> (entry, mass, tempArray, lowestDomainListIndices, lowestDomainListIndex,
                                             lowestDomainListKeys, counter);
 
         cudaEventRecord(stop_t, 0);
@@ -618,7 +592,7 @@ float KernelsWrapper::prepareLowestDomainExchange(float *entry, float *mass, flo
         cudaEventDestroy(stop_t);
     }
     else {
-        prepareLowestDomainExchangeKernel<<< gridSize, blockSize >>> (entry, mass, tempArray, lowestDomainListIndices, lowestDomainListIndex,
+        prepareLowestDomainExchangeKernel<<< /*1, 1*/ gridSize, blockSize >>> (entry, mass, tempArray, lowestDomainListIndices, lowestDomainListIndex,
                                                                 lowestDomainListKeys, counter);
     }
     return elapsedTime;
@@ -637,7 +611,7 @@ float KernelsWrapper::prepareLowestDomainExchangeMass(float *mass, float *tempAr
         cudaEventRecord(start_t, 0);
 
         //kernel call
-        prepareLowestDomainExchangeMassKernel<<< gridSize, blockSize >>> (mass, tempArray, lowestDomainListIndices, lowestDomainListIndex,
+        prepareLowestDomainExchangeMassKernel<<< /*1, 1*/ gridSize, blockSize >>> (mass, tempArray, lowestDomainListIndices, lowestDomainListIndex,
                                                                       lowestDomainListKeys, counter);
 
         cudaEventRecord(stop_t, 0);
@@ -647,7 +621,7 @@ float KernelsWrapper::prepareLowestDomainExchangeMass(float *mass, float *tempAr
         cudaEventDestroy(stop_t);
     }
     else {
-        prepareLowestDomainExchangeMassKernel<<< gridSize, blockSize >>> (mass, tempArray, lowestDomainListIndices, lowestDomainListIndex,
+        prepareLowestDomainExchangeMassKernel<<< /*1, 1*/ gridSize, blockSize >>> (mass, tempArray, lowestDomainListIndices, lowestDomainListIndex,
                                                                           lowestDomainListKeys, counter);
     }
     return elapsedTime;
@@ -813,3 +787,168 @@ float KernelsWrapper::compDomainListPseudoParticlesPar(float *x, float *y, float
 
 }
 
+
+
+float KernelsWrapper::collectSendIndices(int *sendIndices, float *entry, float *tempArray, int *domainListCounter,
+                                         int sendCount, bool timing) {
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t; // used for timing
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        collectSendIndicesKernel<<< gridSize, blockSize >>>(sendIndices, entry, tempArray, domainListCounter,
+                                                            sendCount);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        collectSendIndicesKernel<<< gridSize, blockSize >>>(sendIndices, entry, tempArray, domainListCounter,
+                                                            sendCount);
+    }
+    return elapsedTime;
+
+}
+
+float KernelsWrapper::symbolicForce(int relevantIndex, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
+                                    float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
+                                    unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
+                                    int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
+                                    SubDomainKeyTree *s, int n, int m, float diam, float theta, bool timing) {
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t; // used for timing
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        //kernel call
+        symbolicForceKernel<<<gridSize, blockSize>>>(relevantIndex, x, y, z, minX, maxX, minY, maxY, minZ, maxZ, child,
+                                                     domainListIndex, domainListKeys, domainListIndices, domainListLevels,
+                                                     domainListCounter, sendIndices, index, particleCounter, s, n, m,
+                                                     diam, theta);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        //kernel call
+        symbolicForceKernel<<<gridSize, blockSize>>>(relevantIndex, x, y, z, minX, maxX, minY, maxY, minZ, maxZ, child,
+                                                     domainListIndex, domainListKeys, domainListIndices, domainListLevels,
+                                                     domainListCounter, sendIndices, index, particleCounter, s, n, m,
+                                                     diam, theta);
+    }
+    return elapsedTime;
+
+}
+
+float KernelsWrapper::compTheta(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
+               float *minZ, float *maxZ, int *domainListIndex, int *domainListCounter,
+               unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
+               int *relevantDomainListIndices, SubDomainKeyTree *s, bool timing) {
+
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t; // used for timing
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        //kernel call
+        compThetaKernel<<<gridSize, blockSize>>>(x, y, z, minX, maxX, minY, maxY, minZ, maxZ, domainListIndex,
+                                                 domainListCounter, domainListKeys, domainListIndices, domainListLevels,
+                                                 relevantDomainListIndices, s);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        //kernel call
+        compThetaKernel<<<gridSize, blockSize>>>(x, y, z, minX, maxX, minY, maxY, minZ, maxZ, domainListIndex,
+                                                 domainListCounter, domainListKeys, domainListIndices, domainListLevels,
+                                                 relevantDomainListIndices, s);
+    }
+    return elapsedTime;
+
+}
+
+float KernelsWrapper::insertReceivedParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
+                             int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                             float *minZ, float *maxZ, int *to_delete_leaf, int n, int m, bool timing) {
+
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t; // used for timing
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        //kernel call
+        insertReceivedParticlesKernel<<<gridSize, blockSize>>>(x, y, z, mass, count, start, child, index, minX, maxX,
+                                                               minY, maxY, minZ, maxZ, to_delete_leaf, n, m);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        //kernel call
+        insertReceivedParticlesKernel<<<gridSize, blockSize>>>(x, y, z, mass, count, start, child, index, minX, maxX,
+                                                               minY, maxY, minZ, maxZ, to_delete_leaf, n, m);
+    }
+    return elapsedTime;
+
+}
+
+
+float KernelsWrapper::repairTree(float *x, float *y, float *z, float *vx, float *vy, float *vz,
+                float *ax, float *ay, float *az, float *mass, int *count, int *start,
+                int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                float *minZ, float *maxZ, int *to_delete_cell, int *to_delete_leaf,
+                int *domainListIndices, int n, int m, bool timing) {
+
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t; // used for timing
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        //kernel call
+        repairTreeKernel<<<gridSize, blockSize>>>(x, y, z, vx, vy, vz, ax, ay, az, mass, count, start, child, index,
+                                                  minX, maxX, minY, maxY, minZ, maxZ, to_delete_cell, to_delete_leaf,
+                                                  domainListIndices, n, m);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        //kernel call
+        repairTreeKernel<<<gridSize, blockSize>>>(x, y, z, vx, vy, vz, ax, ay, az, mass, count, start, child, index,
+                                                  minX, maxX, minY, maxY, minZ, maxZ, to_delete_cell, to_delete_leaf,
+                                                  domainListIndices, n, m);
+    }
+    return elapsedTime;
+
+}

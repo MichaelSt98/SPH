@@ -184,9 +184,10 @@ __global__ void collectSendIndicesKernel(int *sendIndices, float *entry, float *
 
 //TODO: implement
 //__global__ void symbolicForce();
-__global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float *z, int *domainListIndex,
+__global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
+                                    float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
                                     unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
-                                    int *domainListCounter, float *sendIndices, int *index, int *particleCounter,
+                                    int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
                                     SubDomainKeyTree *s, int n, int m, float diam, float theta);
 
 //TODO: implement
@@ -225,15 +226,18 @@ __global__ void updateKernel(float *x, float *y, float *z, float *vx, float *vy,
  * Mark with to_delete_cell and to_delete_leaf
  */
 //TODO: not tested yet!
-__global__ void insertReceivedParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
+__global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                         int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                         float *minZ, float *maxZ, int *to_delete_leaf, int n, int m);
 
 //TODO: not tested yet!
-__global__ void repairTree(float *x, float *y, float *z, float *vx, float *vy, float *vz,
+__global__ void repairTreeKernel(float *x, float *y, float *z, float *vx, float *vy, float *vz,
                            float *ax, float *ay, float *az, float *mass, int *count, int *start,
                            int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                            float *minZ, float *maxZ, int *to_delete_cell, int *to_delete_leaf,
                            int *domainListIndices, int n, int m);
+
+__device__ int getTreeLevel(int index, int *child, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
+                            float *maxY, float *minZ, float *maxZ);
 
 #endif //CUDA_NBODY_KERNELS_CUH
