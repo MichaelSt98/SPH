@@ -1,5 +1,5 @@
 file bin/runner
 
 #commands
-run
+run -i 1
 #end

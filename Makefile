@@ -1,6 +1,6 @@
 #Compiler/Linker
 CXX            := mpic++#g++
-NVCC           := nvcc
+NVCC           := /usr/local/cuda-10.1/bin/nvcc
 
 #Target binary
 TARGET         := runner
@@ -23,7 +23,7 @@ DEPEXT         := d
 OBJEXT         := o
 
 #Flags, Libraries and Includes
-CXXFLAGS       += -std=c++11 -O3 -w
+CXXFLAGS       += -std=c++11 -w #-O3
 NVFLAGS        := -x cu -c -dc -w -Xcompiler "-pthread" -Wno-deprecated-gpu-targets -O3 -I/opt/openmpi-4.1.0/include #-lmpi
 LFLAGS         += -g -lm -L$(CUDADIR)/lib64 -lcudart -lpthread -lconfig -L/usr/local/cuda-10.1/lib64 -L/opt/openmpi-4.1.0/lib -lmpi
 GPU_ARCH       := -arch=sm_52

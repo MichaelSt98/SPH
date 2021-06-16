@@ -188,7 +188,7 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
                                     float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
                                     unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
                                     int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
-                                    SubDomainKeyTree *s, int n, int m, float diam, float theta);
+                                    SubDomainKeyTree *s, int n, int m, float diam, float theta/*, int *mutex*/);
 
 //TODO: implement
 __global__ void compThetaKernel(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
@@ -239,5 +239,7 @@ __global__ void repairTreeKernel(float *x, float *y, float *z, float *vx, float 
 
 __device__ int getTreeLevel(int index, int *child, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
                             float *maxY, float *minZ, float *maxZ);
+
+__global__ void findDuplicatesKernel(float *array, int length, SubDomainKeyTree *s, int *duplicateCounter);
 
 #endif //CUDA_NBODY_KERNELS_CUH

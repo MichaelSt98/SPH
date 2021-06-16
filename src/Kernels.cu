@@ -1544,7 +1544,10 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
                                     float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
                               unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
                               int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
-                              SubDomainKeyTree *s, int n, int m, float diam, float theta) {
+                              SubDomainKeyTree *s, int n, int m, float diam, float theta/*, int *mutex*/) {
+
+    //while (atomicCAS(mutex, 0 ,1) != 0); // lock
+    //atomicExch(mutex, 0); // unlock
 
     int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
     int stride = blockDim.x * gridDim.x;
@@ -1557,7 +1560,8 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
 
     while ((bodyIndex + offset) < *index) {
         insert = true;
-        if ((bodyIndex + offset) < particleCounter[s->rank] || (bodyIndex + offset) > n) {
+
+        if ((bodyIndex + offset) != relevantIndex && ((bodyIndex + offset) < particleCounter[s->rank] || (bodyIndex + offset) > n)) {
             r = smallestDistance(x, y, z, bodyIndex + offset, relevantIndex); //relevantIndex, bodyIndex + offset);
             level = getTreeLevel(bodyIndex + offset, child, x, y, z, minX, maxX, minY, maxY, minZ, maxZ);
             //printf("level: %i\n", level);
@@ -1572,20 +1576,31 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
                 for (int i=0; i<*domainListCounter; i++) {
                     if ((bodyIndex + offset) == sendIndices[i]) {
                         insert = false;
+                        break;
                         //printf("already saved to be sent!\n");
+                    }
+                }
+                //TODO: debugging
+                for (int i=0; i<*domainListCounter; i++) {
+                    if (x[bodyIndex + offset] == x[i]) {
+                        printf("already saved to be sent!\n");
+                        insert = false;
+                        break;
                     }
                 }
                 //check whether node is a domain list node
                 for (int i=0; i<*domainListIndex; i++) {
                     if ((bodyIndex + offset) == domainListIndices[i]) {
                         insert = false;
+                        break;
                         //printf("domain list nodes do not need to be sent!\n");
                     }
                 }
-                if (insert) {
+                if (insert /*&& atomicCAS(mutex, 0 ,1) == 0*/) {
                     //add to indices to be sent
                     insertIndex = atomicAdd(domainListCounter, 1);
                     sendIndices[insertIndex] = bodyIndex + offset;
+                    //atomicExch(mutex, 0); // unlock
                 }
 
                 //TODO: inserting children
@@ -1618,6 +1633,9 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
         }
 
         offset += stride;
+        //if (!insert) {
+        //    offset += stride;
+        //}
     }
 
 }
@@ -1709,9 +1727,12 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
     int childPath;
     int temp;
 
+    //debugging
+    bool stop = false;
+
     offset = 0;
 
-    bodyIndex += to_delete_leaf[0]; //TODO: would be possible but shouldnt change something
+    bodyIndex += to_delete_leaf[0]; //TODO: would be possible but shouldn't change something
 
     //if ((bodyIndex + offset) % 10000 == 0) {
     //    printf("index = %i x = (%f, %f, %f)\n", bodyIndex + offset, x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset]);
@@ -1721,7 +1742,7 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
     //    printf("to_delete_leaf = (%i, %i)\n", to_delete_leaf[0], to_delete_leaf[1]);
     //}
 
-    while ((bodyIndex + offset) < to_delete_leaf[1] && (bodyIndex + offset) > to_delete_leaf[0]) {
+    while ((bodyIndex + offset) < to_delete_leaf[1] && (bodyIndex + offset) >= to_delete_leaf[0]) {
 
 
         if ((bodyIndex + offset) == (to_delete_leaf[0]+1)) {
@@ -1733,11 +1754,33 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
         //debugging
         if ((bodyIndex + offset) % 100 == 0) {
             printf("index = %i x = (%f, %f, %f) (index = %i) to_delete_leaf = (%i, %i)\n", bodyIndex + offset, x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset], *index, to_delete_leaf[0], to_delete_leaf[1]);
+            //printf("index = %i x = (%f, %f, %f) (index = %i) to_delete_leaf = (%i, %i)\n", bodyIndex + offset - 10000, x[bodyIndex + offset - 10000], y[bodyIndex + offset-10000], z[bodyIndex + offset-10000], *index, to_delete_leaf[0], to_delete_leaf[1]);
         }
+
+        for (int i=to_delete_leaf[0]; i<to_delete_leaf[1]; i++) {
+            if (i != (bodyIndex + offset)) {
+                if (x[i] == x[bodyIndex + offset]) {
+                    //printf("ATTENTION: x[%i] = (%f, %f, %f) vs. x[%i] = (%f, %f, %f)\n", i, x[i], y[i], z[i],
+                    //       bodyIndex + offset,  x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset]);
+                    //stop = true;
+                    //break;
+                }
+            }
+        }
+
         //debugging
         offset += stride;
 
+        /*if (stop) {
+            offset += stride;
+            continue;
+            //break;
+        }*/
+
+
         /*if (newBody) {
+
+            stop = false;
 
             newBody = false;
 
@@ -1833,14 +1876,30 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
                 }
                 else {
                     if (childIndex >= to_delete_leaf[1]) {
-                        printf("ATTENTION!\n");
+                        printf("ATTENTION! childIndex = %i | to_delete_leaf[1] = %i\n", childIndex, to_delete_leaf[1]);
+                        child[locked] = bodyIndex + offset;
+                        break;
                     }
                     int patch = 8 * m; //8*n
-                    while (childIndex >= 0 && childIndex < n) {
+                    while (childIndex >= 0 && childIndex < n && !stop) {
+
+                        //debug
+                        if (x[childIndex] == x[bodyIndex + offset]) {
+                            printf("ATTENTION (shouldn't happen...): x[%i] = (%f, %f, %f) vs. x[%i] = (%f, %f, %f)\n", childIndex, x[childIndex], y[childIndex], z[childIndex],
+                                   bodyIndex + offset,  x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset]);
+                            child[locked] = bodyIndex + offset;
+                            stop = true;
+                            break;
+                        }
 
                         //create a new cell (by atomically requesting the next unused array index)
                         int cell = atomicAdd(index, 1);
+                        //printf("Adding cell!\n");
                         patch = min(patch, cell);
+
+                        if (*index > 831514) {
+                            printf("Why the fuck is the index that huge? index = %i\n", *index);
+                        }
 
                         if (patch != cell) {
                             child[8 * temp + childPath] = cell;
@@ -2007,3 +2066,44 @@ __device__ int getTreeLevel(int index, int *child, float *x, float *y, float *z,
     return -1;
 
 }
+
+__global__ void findDuplicatesKernel(float *array, int length, SubDomainKeyTree *s, int *duplicateCounter) {
+
+    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+    int offset = 0;
+
+    while ((bodyIndex + offset) < length) {
+
+        for (int i=0; i<length; i++) {
+            if (i != (bodyIndex + offset)) {
+                if (array[bodyIndex + offset] == array[i]) {
+                    duplicateCounter[i] += 1;
+                    //printf("duplicate!\n");
+                }
+            }
+        }
+
+        offset += stride;
+    }
+
+}
+
+/*__global__ void removeDuplicatesKernel(float *arrayToCompare, int *outArray, int length, SubDomainKeyTree *s, int *counter) {
+    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+    int offset = 0;
+
+    while ((bodyIndex + offset) < length) {
+
+        for (int i=0; i<length; i++) {
+            if (i != (bodyIndex + offset)) {
+                if (arrayToCompare[bodyIndex + offset] == arrayToCompare[i]) {
+                    if ((bodyIndex + offset )
+                }
+            }
+        }
+
+        offset += stride;
+    }
+}*/

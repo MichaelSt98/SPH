@@ -820,7 +820,7 @@ float KernelsWrapper::symbolicForce(int relevantIndex, float *x, float *y, float
                                     float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
                                     unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
                                     int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
-                                    SubDomainKeyTree *s, int n, int m, float diam, float theta, bool timing) {
+                                    SubDomainKeyTree *s, int n, int m, float diam, float theta, /*int *mutex,*/ bool timing) {
 
     float elapsedTime = 0.f;
     if (timing) {
@@ -833,7 +833,7 @@ float KernelsWrapper::symbolicForce(int relevantIndex, float *x, float *y, float
         symbolicForceKernel<<<gridSize, blockSize>>>(relevantIndex, x, y, z, minX, maxX, minY, maxY, minZ, maxZ, child,
                                                      domainListIndex, domainListKeys, domainListIndices, domainListLevels,
                                                      domainListCounter, sendIndices, index, particleCounter, s, n, m,
-                                                     diam, theta);
+                                                     diam, theta/*, mutex*/);
 
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
@@ -846,7 +846,7 @@ float KernelsWrapper::symbolicForce(int relevantIndex, float *x, float *y, float
         symbolicForceKernel<<<gridSize, blockSize>>>(relevantIndex, x, y, z, minX, maxX, minY, maxY, minZ, maxZ, child,
                                                      domainListIndex, domainListKeys, domainListIndices, domainListLevels,
                                                      domainListCounter, sendIndices, index, particleCounter, s, n, m,
-                                                     diam, theta);
+                                                     diam, theta/*, mutex*/);
     }
     return elapsedTime;
 
@@ -951,4 +951,28 @@ float KernelsWrapper::repairTree(float *x, float *y, float *z, float *vx, float 
     }
     return elapsedTime;
 
+}
+
+float KernelsWrapper::findDuplicates(float *array, int length, SubDomainKeyTree *s, int *duplicateCounter, bool timing) {
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t; // used for timing
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        //kernel call
+        findDuplicatesKernel<<<gridSize, blockSize>>>(array, length, s, duplicateCounter);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        //kernel call
+        findDuplicatesKernel<<<gridSize, blockSize>>>(array, length, s, duplicateCounter);
+    }
+    return elapsedTime;
 }

@@ -153,7 +153,8 @@ public:
                                         float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
                                         unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
                                         int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
-                                        SubDomainKeyTree *s, int n, int m, float diam, float theta, bool timing=false);
+                                        SubDomainKeyTree *s, int n, int m, float diam, float theta, /*int *mutex,*/
+                                        bool timing=false);
 
     float compTheta(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
                                     float *minZ, float *maxZ, int *domainListIndex, int *domainListCounter,
@@ -170,6 +171,8 @@ public:
                                int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                float *minZ, float *maxZ, int *to_delete_cell, int *to_delete_leaf,
                                int *domainListIndices, int n, int m, bool timing=false);
+
+    float findDuplicates(float *array, int length, SubDomainKeyTree *s, int *duplicateCounter, bool timing=false);
 
 };
 

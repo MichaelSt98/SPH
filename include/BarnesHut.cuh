@@ -14,6 +14,7 @@
 #include <cuda_runtime.h>
 #include <climits> // for ulong_max
 #include <algorithm>
+#include <cmath>
 //#define KEY_MAX ULONG_MAX
 
 #define TESTING 0
@@ -71,6 +72,8 @@ private:
     int *h_sorted;
     int *h_count;
 
+    //int *h_tempIntArray;
+
     SubDomainKeyTree *h_subDomainHandler;
 
     float *d_min_x;
@@ -92,6 +95,8 @@ private:
     unsigned long *d_lowestDomainListKeys;
     unsigned long *d_sortedLowestDomainListKeys;
     int *d_lowestDomainListCounter;
+
+    int *d_tempIntArray;
 
     float *d_tempArray;
     int *d_sortArray;

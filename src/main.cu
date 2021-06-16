@@ -54,6 +54,10 @@ int main(int argc, char** argv)
 
         cudaSetDevice(rank);
 
+        int device;
+        cudaGetDevice(&device);
+        Logger(INFO) << "Set device to " << device;
+
         cxxopts::Options options("HPC NBody", "Multi-GPU CUDA Barnes-Hut NBody code");
 
         bool render = false;

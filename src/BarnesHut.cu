@@ -49,8 +49,8 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     h_max_x = new float;
     h_min_y = new float;
     h_max_y = new float;
-    h_min_y = new float;
-    h_max_y = new float;
+    h_min_z = new float;
+    h_max_z = new float;
 
     h_mass = new float[numNodes];
 
@@ -90,6 +90,8 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     h_start = new int[numNodes];
     h_sorted = new int[numNodes];
     h_count = new int[numNodes];
+
+    //h_tempIntArray = new int[numParticles];
     //h_output = new float[2*numNodes];
 
     time_resetArrays = new float[parameters.iterations];
@@ -128,6 +130,8 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     gpuErrorcheck(cudaMalloc((void**)&d_domainListLevels, DOMAIN_LIST_SIZE*sizeof(int)));
     gpuErrorcheck(cudaMalloc((void**)&d_domainListIndex, sizeof(int)));
     gpuErrorcheck(cudaMalloc((void**)&d_lowestDomainListIndex, sizeof(int)));
+
+    gpuErrorcheck(cudaMalloc((void**)&d_tempIntArray, 100000*sizeof(int)));
 
     gpuErrorcheck(cudaMalloc((void**)&d_tempArray, 2*numParticles*sizeof(float)));
     gpuErrorcheck(cudaMalloc((void**)&d_sortArray, numParticles*sizeof(int)));
@@ -190,9 +194,9 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
 
     // copy data to GPU device
 
-    cudaMemcpy(d_subDomainHandler, h_subDomainHandler, sizeof(SubDomainKeyTree), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_range, h_subDomainHandler->range, size, cudaMemcpyHostToDevice);
-    cudaMemcpy(&(d_subDomainHandler->range), &d_range, sizeof(unsigned long*), cudaMemcpyHostToDevice);
+    gpuErrorcheck(cudaMemcpy(d_subDomainHandler, h_subDomainHandler, sizeof(SubDomainKeyTree), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(d_range, h_subDomainHandler->range, size, cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(&(d_subDomainHandler->range), &d_range, sizeof(unsigned long*), cudaMemcpyHostToDevice));
 
     //cudaMemcpy(d_subDomainHandler, h_subDomainHandler, sizeof(*h_subDomainHandler), cudaMemcpyHostToDevice);
     //cudaMemcpy(&d_subDomainHandler->rank, &h_subDomainHandler->rank, sizeof(int), cudaMemcpyHostToDevice);
@@ -200,10 +204,10 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     //cudaMemcpy(&d_subDomainHandler->range, &h_subDomainHandler->range, 3*sizeof(unsigned long), cudaMemcpyHostToDevice);
 
     //cudaMemcpy(d_mass, h_mass, 2*numParticles*sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_mass, h_mass, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_domainListIndices, h_domainListIndices, DOMAIN_LIST_SIZE*sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_domainListKeys, h_domainListKeys, DOMAIN_LIST_SIZE*sizeof(unsigned long), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_domainListLevels, h_domainListLevels, DOMAIN_LIST_SIZE*sizeof(int), cudaMemcpyHostToDevice);
+    gpuErrorcheck(cudaMemcpy(d_mass, h_mass, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(d_domainListIndices, h_domainListIndices, DOMAIN_LIST_SIZE*sizeof(int), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(d_domainListKeys, h_domainListKeys, DOMAIN_LIST_SIZE*sizeof(unsigned long), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(d_domainListLevels, h_domainListLevels, DOMAIN_LIST_SIZE*sizeof(int), cudaMemcpyHostToDevice));
     gpuErrorcheck(cudaMemset(d_domainListIndex, 0, sizeof(int)));
     gpuErrorcheck(cudaMemset(d_lowestDomainListIndex, 0, sizeof(int)));
 
@@ -217,15 +221,15 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     cudaMemcpy(d_ay, h_ay, 2*numParticles*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_az, h_az, 2*numParticles*sizeof(float), cudaMemcpyHostToDevice);*/
 
-    cudaMemcpy(d_x,  h_x,  numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_y,  h_y,  numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_z,  h_z,  numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_vx, h_vx, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_vy, h_vy, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_vz, h_vz, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_ax, h_ax, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_ay, h_ay, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_az, h_az, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice);
+    gpuErrorcheck(cudaMemcpy(d_x,  h_x,  numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(d_y,  h_y,  numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(d_z,  h_z,  numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(d_vx, h_vx, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(d_vy, h_vy, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(d_vz, h_vz, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(d_ax, h_ax, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(d_ay, h_ay, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(d_az, h_az, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice));
 
 }
 
@@ -321,7 +325,7 @@ void BarnesHut::update(int step)
 {
 
     int device;
-    cudaGetDevice(&device);
+    gpuErrorcheck(cudaGetDevice(&device));
     Logger(INFO) << "&d_sortArrayOut = " << d_sortArrayOut << " on device: " << device;
 
     /*RESETTING ARRAYS*************************************************************************/
@@ -353,12 +357,16 @@ void BarnesHut::update(int step)
 
     globalizeBoundingBox();
 
-    cudaMemcpy(h_min_x, d_min_x, sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_max_x, d_max_x, sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_min_y, d_min_y, sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_max_y, d_max_y, sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_min_z, d_min_z, sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_max_z, d_max_z, sizeof(float), cudaMemcpyDeviceToHost);
+    /*gpuErrorcheck(cudaMemcpy(h_min_x, d_min_x, sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_max_x, d_max_x, sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_min_y, d_min_y, sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_max_y, d_max_y, sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_min_z, d_min_z, sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_max_z, d_max_z, sizeof(float), cudaMemcpyDeviceToHost));
+
+    Logger(INFO) << "Boundaries x = (" << *h_min_x << ", " << *h_max_x
+                        << "), y = " << *h_min_y << ", " << *h_max_y
+                        << "), z = " << *h_min_z << ", " << *h_max_z << ")";*/
 
     time_computeBoundingBox[step] = elapsedTimeKernel;
     if (timeKernels) {
@@ -428,7 +436,7 @@ void BarnesHut::update(int step)
     Logger(TIME) << "\tSorting for process: " << elapsedTimeSorting << "ms";
 
     //cudaMemcpy(h_x, d_x, 2*numParticles*sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_procCounter, d_procCounter, h_subDomainHandler->numProcesses*sizeof(int), cudaMemcpyDeviceToHost);
+    gpuErrorcheck(cudaMemcpy(h_procCounter, d_procCounter, h_subDomainHandler->numProcesses*sizeof(int), cudaMemcpyDeviceToHost));
 
     for (int proc=0; proc<h_subDomainHandler->numProcesses; proc++) {
         printf("[rank %i] HOST: procCounter[%i] = %i\n", h_subDomainHandler->rank, proc, h_procCounter[proc]);
@@ -698,12 +706,12 @@ void BarnesHut::update(int step)
     cudaEventCreate(&stop_t);
     cudaEventRecord(start_t, 0);
 
-    cudaMemcpy(h_x, d_x, numNodes*sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_y, d_y, numNodes*sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_z, d_z, numNodes*sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_vx, d_vx, numNodes*sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_vy, d_vy, numNodes*sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_vz, d_vz, numNodes*sizeof(float), cudaMemcpyDeviceToHost);
+    gpuErrorcheck(cudaMemcpy(h_x, d_x, numNodes*sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_y, d_y, numNodes*sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_z, d_z, numNodes*sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_vx, d_vx, numNodes*sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_vy, d_vy, numNodes*sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_vz, d_vz, numNodes*sizeof(float), cudaMemcpyDeviceToHost));
 
     cudaEventRecord(stop_t, 0);
     cudaEventSynchronize(stop_t);
@@ -919,14 +927,14 @@ void BarnesHut::sortArrayRadix(float *arrayToSort, float *tempArray, int *keyIn,
     gpuErrorcheck(cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
                                     keyIn, keyOut, arrayToSort, tempArray, n));
     // Allocate temporary storage
-    cudaMalloc(&d_temp_storage, temp_storage_bytes);
+    gpuErrorcheck(cudaMalloc(&d_temp_storage, temp_storage_bytes));
     gpuErrorcheck(cudaMalloc((void**)&d_temp_storage, temp_storage_bytes));
 
     // Run sorting operation
     gpuErrorcheck(cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
                                     keyIn, keyOut, arrayToSort, tempArray, n));
 
-    cudaFree(d_temp_storage);
+    gpuErrorcheck(cudaFree(d_temp_storage));
 }
 void BarnesHut::sortArrayRadix(float *arrayToSort, float *tempArray, unsigned long *keyIn, unsigned long *keyOut, int n) {
     // Determine temporary device storage requirements
@@ -935,14 +943,14 @@ void BarnesHut::sortArrayRadix(float *arrayToSort, float *tempArray, unsigned lo
     gpuErrorcheck(cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
                                                   keyIn, keyOut, arrayToSort, tempArray, n));
     // Allocate temporary storage
-    cudaMalloc(&d_temp_storage, temp_storage_bytes);
+    gpuErrorcheck(cudaMalloc(&d_temp_storage, temp_storage_bytes));
     gpuErrorcheck(cudaMalloc((void**)&d_temp_storage, temp_storage_bytes));
 
     // Run sorting operation
     gpuErrorcheck(cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes,
                                                   keyIn, keyOut, arrayToSort, tempArray, n));
 
-    cudaFree(d_temp_storage);
+    gpuErrorcheck(cudaFree(d_temp_storage));
 }
 //alternatively using Thrust:
 /*thrust::device_vector<int>  indices(N);
@@ -1244,7 +1252,7 @@ void BarnesHut::exchangeParticleEntry(int *sendLengths, int *receiveLengths, flo
 
     for (int proc=0; proc < h_subDomainHandler->numProcesses; proc++) {
         if (proc != h_subDomainHandler->rank) {
-
+            //Logger(INFO) << "sendLengths[" << proc << "] = " << sendLengths[proc];
             MPI_Isend(d_tempArray, sendLengths[proc], MPI_FLOAT, proc, 17, MPI_COMM_WORLD, &reqParticles[reqCounter]);
             MPI_Recv(&entry[numParticlesLocal] + receiveOffset, receiveLengths[proc], MPI_FLOAT,
                      proc, 17, MPI_COMM_WORLD, &statParticles[reqCounter]);
@@ -1281,33 +1289,43 @@ void BarnesHut::parallelForce() {
                             d_subDomainHandler, false);
 
     int relevantIndicesCounter;
-    cudaMemcpy(&relevantIndicesCounter, d_domainListCounter, sizeof(int), cudaMemcpyDeviceToHost);
+    gpuErrorcheck(cudaMemcpy(&relevantIndicesCounter, d_domainListCounter, sizeof(int), cudaMemcpyDeviceToHost));
 
     Logger(INFO) << "relevantIndicesCounter: " << relevantIndicesCounter;
 
     //cudaMemcpy(&domainListIndex, d_relevantDomainListIndices, relevantIndicesCounter*sizeof(int), cudaMemcpyDeviceToHost);
 
+    gpuErrorcheck(cudaMemcpy(h_min_x, d_min_x, sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_max_x, d_max_x, sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_min_y, d_min_y, sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_max_y, d_max_y, sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_min_z, d_min_z, sizeof(float), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_max_z, d_max_z, sizeof(float), cudaMemcpyDeviceToHost));
 
-    float diam_x = h_max_x - h_min_x;
-    float diam_y = h_max_y - h_min_y;
-    float diam_z = h_max_z - h_min_z;
+    float diam_x = std::abs(*h_max_x) + std::abs(*h_min_x);
+    float diam_y = std::abs(*h_max_y) + std::abs(*h_min_y);
+    float diam_z = std::abs(*h_max_z) + std::abs(*h_min_z);
 
     float diam = std::max({diam_x, diam_y, diam_z}); //0.f; //TODO:  why is diam_z that large???
     Logger(INFO) << "diam: " << diam << "  (x = " << diam_x << ", y = " << diam_y << ", z = " << diam_z << ")";
     float theta = 0.6f;
 
     gpuErrorcheck(cudaMemset(d_domainListCounter, 0, sizeof(int)));
+    int currentDomainListCounter;
     for (int relevantIndex=0; relevantIndex<relevantIndicesCounter; relevantIndex++) {
+        gpuErrorcheck(cudaMemcpy(&currentDomainListCounter, d_domainListCounter, sizeof(int), cudaMemcpyDeviceToHost));
+        //gpuErrorcheck(cudaMemset(d_mutex, 0, sizeof(int)));
+        Logger(INFO) << "current value of domain list counter: " << currentDomainListCounter;
         KernelHandler.symbolicForce(relevantIndex, d_x, d_y, d_z, d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z,
                                     d_child, d_domainListIndex, d_domainListKeys, d_domainListIndices, d_domainListLevels,
                                     d_domainListCounter, d_sendIndices, d_index, d_procCounter, d_subDomainHandler,
                                     numParticles, numNodes, diam, theta, false);
     }
 
-    cudaMemcpy(h_procCounter, d_procCounter, h_subDomainHandler->numProcesses*sizeof(int), cudaMemcpyDeviceToHost);
+    gpuErrorcheck(cudaMemcpy(h_procCounter, d_procCounter, h_subDomainHandler->numProcesses*sizeof(int), cudaMemcpyDeviceToHost));
 
     int sendCount;
-    cudaMemcpy(&sendCount, d_domainListCounter, sizeof(int), cudaMemcpyDeviceToHost);
+    gpuErrorcheck(cudaMemcpy(&sendCount, d_domainListCounter, sizeof(int), cudaMemcpyDeviceToHost));
     Logger(INFO) << "sendCount: " << sendCount;
 
 
@@ -1352,35 +1370,32 @@ void BarnesHut::parallelForce() {
     //cudaMemcpy(&d_to_delete_leaf[0], &h_procCounter[h_subDomainHandler->rank], sizeof(int), cudaMemcpyHostToDevice);
     //cudaMemcpy(&d_to_delete_leaf[1], &to_delete_leaf_1, sizeof(int),
     //         cudaMemcpyHostToDevice);
-    cudaMemcpy(&d_to_delete_leaf[0], &to_delete_leaf_0, sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(&d_to_delete_leaf[1], &to_delete_leaf_1, sizeof(int),
-               cudaMemcpyHostToDevice);
+    gpuErrorcheck(cudaMemcpy(&d_to_delete_leaf[0], &to_delete_leaf_0, sizeof(int), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(&d_to_delete_leaf[1], &to_delete_leaf_1, sizeof(int),
+               cudaMemcpyHostToDevice));
 
     //copy values[indices] into d_tempArray (float)
 
     // x
-    /*Logger(INFO) << "rank: X !!!";
     KernelHandler.collectSendIndices(d_sendIndices, d_x, d_tempArray, d_domainListCounter, sendCount);
     //debugging
-    KernelHandler.sendParticles(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
-                                        d_min_z, d_max_z, numParticlesLocal, numNodes, d_subDomainHandler, d_procCounter, d_tempArray,
-                                        d_sortArray, d_sortArrayOut);
+    //KernelHandler.sendParticles(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
+    //                                    d_min_z, d_max_z, numParticlesLocal, numNodes, d_subDomainHandler, d_procCounter, d_tempArray,
+    //                                    d_sortArray, d_sortArrayOut);
     exchangeParticleEntry(sendLengths, receiveLengths, d_x);
     // y
-    Logger(INFO) << "rank: Y !!!";
     KernelHandler.collectSendIndices(d_sendIndices, d_y, d_tempArray, d_domainListCounter, sendCount);
     //debugging
-    KernelHandler.sendParticles(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
-                                        d_min_z, d_max_z, numParticlesLocal, numNodes, d_subDomainHandler, d_procCounter, d_tempArray,
-                                        d_sortArray, d_sortArrayOut);
+    //KernelHandler.sendParticles(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
+    //                                    d_min_z, d_max_z, numParticlesLocal, numNodes, d_subDomainHandler, d_procCounter, d_tempArray,
+    //                                    d_sortArray, d_sortArrayOut);
     exchangeParticleEntry(sendLengths, receiveLengths, d_y);
     // z
-    Logger(INFO) << "rank: Z !!!";
     KernelHandler.collectSendIndices(d_sendIndices, d_z, d_tempArray, d_domainListCounter, sendCount);
     exchangeParticleEntry(sendLengths, receiveLengths, d_z);
 
     // vx
-    KernelHandler.collectSendIndices(d_sendIndices, d_vx, d_tempArray, d_domainListCounter, sendCount);
+    /*KernelHandler.collectSendIndices(d_sendIndices, d_vx, d_tempArray, d_domainListCounter, sendCount);
     exchangeParticleEntry(sendLengths, receiveLengths, d_vx);
     // vy
     KernelHandler.collectSendIndices(d_sendIndices, d_vy, d_tempArray, d_domainListCounter, sendCount);
@@ -1407,7 +1422,9 @@ void BarnesHut::parallelForce() {
     //insert into tree // remember within to_delete_cell
     //remember index
     int indexBeforeInserting;
-    cudaMemcpy(&indexBeforeInserting, d_index, sizeof(int), cudaMemcpyDeviceToHost);
+    gpuErrorcheck(cudaMemcpy(&indexBeforeInserting, d_index, sizeof(int), cudaMemcpyDeviceToHost));
+    gpuErrorcheck(cudaMemcpy(h_min_x, d_min_x, sizeof(float), cudaMemcpyDeviceToHost));
+
 
     //call function to insert received particles
     KernelHandler.insertReceivedParticles(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x,
@@ -1415,7 +1432,7 @@ void BarnesHut::parallelForce() {
                                         numParticles, false);
 
     int indexAfterInserting;
-    cudaMemcpy(&indexAfterInserting, d_index, sizeof(int), cudaMemcpyDeviceToHost);
+    gpuErrorcheck(cudaMemcpy(&indexAfterInserting, d_index, sizeof(int), cudaMemcpyDeviceToHost));
 
     Logger(INFO) << "to_delete_leaf[0] = " << to_delete_leaf_0
                  << " | " << "to_delete_leaf[0] = " << to_delete_leaf_1;
@@ -1423,8 +1440,21 @@ void BarnesHut::parallelForce() {
     Logger(INFO) << "to_delete_cell[0] = " << indexBeforeInserting << " | " << "to_delete_cell[1] = "
                 << indexAfterInserting;
 
-    cudaMemcpy(&d_to_delete_cell[0], &indexBeforeInserting, sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(&d_to_delete_cell[1], &indexAfterInserting, sizeof(int), cudaMemcpyHostToDevice);
+    gpuErrorcheck(cudaMemcpy(&d_to_delete_cell[0], &indexBeforeInserting, sizeof(int), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(&d_to_delete_cell[1], &indexAfterInserting, sizeof(int), cudaMemcpyHostToDevice));
+
+
+    gpuErrorcheck(cudaMemset(d_tempIntArray, 0, 100000*sizeof(int)));
+    KernelHandler.findDuplicates(&d_x[numParticlesLocal], to_delete_leaf_1-to_delete_leaf_0, d_subDomainHandler, d_tempIntArray, false);
+
+    int duplicates[10000];
+    gpuErrorcheck(cudaMemcpy(duplicates, d_tempIntArray, (to_delete_leaf_1-to_delete_leaf_0) * sizeof(int), cudaMemcpyDeviceToHost));
+
+    for (int i=0; i<(to_delete_leaf_1-to_delete_leaf_0); i++) {
+        if (duplicates[i] >= 1/*i % 100 == 0*/) {
+            Logger(INFO) << "Duplicate counter [" << i << "] = " << duplicates[i];
+        }
+    }
 
     //TODO: reset index on device?
 
