@@ -239,12 +239,14 @@ __global__ void sortParticlesProcKernel(float *x, float *y, float *z, float *mas
 
         counter = atomicAdd(&procCounterTemp[proc], 1);
 
-        if (proc > 0) {
+        /*if (proc > 0) {
             sortArray[bodyIndex + offset] = procCounter[proc-1] + counter;
         }
         else {
             sortArray[bodyIndex + offset] = counter;
-        }
+        }*/
+
+        sortArray[bodyIndex + offset] = proc;
 
 
         //if ((bodyIndex + offset) == 200000) {
@@ -304,13 +306,20 @@ __global__ void sendParticlesKernel(float *x, float *y, float *z, float *mass, i
       //  printf("[rank %i] procCounter[%i] = %i\n", s->rank, proc, procCounter[proc]);
     //}
 
-    for (int i=0; i<1000; i++) {
-        if (i % 100 == 0) {
-            printf("[rank %i] tempArray[%i] = %f\n", s->rank, i, tempArray[i]);
-            printf("[rank %i] x[%i] = %f\n", s->rank, i+n, x[i+n]);
+    for (int i=0; i<8; i++) {
+        printf("child[%i] = %i\n", i, child[i]);
+        for (int k=0; k<8; k++) {
+            printf("\tchild[8*child[%i] + %i] = %i\n", i, k, child[8*child[i] + k]);
         }
-        //printf("[rank %i] mass[%i] = %f\n", s->rank, i, mass[i]);
     }
+
+    //for (int i=0; i<1000; i++) {
+        //if (i % 100 == 0) {
+            //printf("[rank %i] tempArray[%i] = %f\n", s->rank, i, tempArray[i]);
+            //printf("[rank %i] x[%i] = %f\n", s->rank, i+n, x[i+n]);
+        //}
+        //printf("[rank %i] mass[%i] = %f\n", s->rank, i, mass[i]);
+
     //for (int i=0; i<5; i++) {
         //printf("x[%i] = %f  out[%i] = %f\n", i, x[i], i, tempArray[i]);
         //printf("key_in[%i] = %i  key_out[%i] = %i\n", i, sortArray[i], i, sortArrayOut[i]);
@@ -707,12 +716,16 @@ __global__ void treeInfoKernel(float *x, float *y, float *z, float *mass, int *c
 
     int offset = 0;
 
-    while ((bodyIndex + offset) < n) {
-        // ...
-        offset += stride;
-    }
+    while ((bodyIndex + offset) < procCounter[0]) {
 
-    if (bodyIndex == 0) {
+        key = getParticleKeyPerParticle(x[bodyIndex+offset], y[bodyIndex+offset], z[bodyIndex+offset], minX, maxX, minY, maxY, minZ, maxZ, 21);
+
+        proc = key2proc(key, s);
+        if (proc != s->rank) {
+            printf("WTF? myrank = %i and proc = %i (bodyIndex + offset = %i)\n", s->rank, proc, bodyIndex + offset);
+        }
+
+        offset += stride;
 
         //printf("&sortArrayOut = %p\n", sortArrayOut);
 
@@ -1544,7 +1557,7 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
                                     float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
                               unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
                               int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
-                              SubDomainKeyTree *s, int n, int m, float diam, float theta/*, int *mutex*/) {
+                              SubDomainKeyTree *s, int n, int m, float diam, float theta, int *mutex) {
 
     //while (atomicCAS(mutex, 0 ,1) != 0); // lock
     //atomicExch(mutex, 0); // unlock
@@ -1557,9 +1570,11 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
     bool insert;
     int level;
     int childIndex;
+    bool redo = false;
 
     while ((bodyIndex + offset) < *index) {
         insert = true;
+        redo = false;
 
         if ((bodyIndex + offset) != relevantIndex && ((bodyIndex + offset) < particleCounter[s->rank] || (bodyIndex + offset) > n)) {
             r = smallestDistance(x, y, z, bodyIndex + offset, relevantIndex); //relevantIndex, bodyIndex + offset);
@@ -1582,8 +1597,8 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
                 }
                 //TODO: debugging
                 for (int i=0; i<*domainListCounter; i++) {
-                    if (x[bodyIndex + offset] == x[i]) {
-                        printf("already saved to be sent!\n");
+                    if (x[bodyIndex + offset] == x[sendIndices[i]]) {
+                        //printf("already saved to be sent!\n");
                         insert = false;
                         break;
                     }
@@ -1596,11 +1611,16 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
                         //printf("domain list nodes do not need to be sent!\n");
                     }
                 }
-                if (insert /*&& atomicCAS(mutex, 0 ,1) == 0*/) {
+                if (insert /*&& atomicCAS(mutex, 0 , 1) != 0*/) {
                     //add to indices to be sent
                     insertIndex = atomicAdd(domainListCounter, 1);
                     sendIndices[insertIndex] = bodyIndex + offset;
                     //atomicExch(mutex, 0); // unlock
+                    //printf("inserting to be sent\n");
+                }
+                else {
+                    //insert = true;
+                    //redo = true;
                 }
 
                 //TODO: inserting children
@@ -1633,12 +1653,18 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
         }
 
         offset += stride;
-        //if (!insert) {
+        //if (mutex == 0) {
+        //    offset += stride;
+        //}
+        //if (!redo) {
         //    offset += stride;
         //}
     }
 
 }
+
+//__global__ void deleteDuplicates()
+
 
 //TODO: implement
 //TODO: reset domainListCounter after compTheta!!!
@@ -1728,7 +1754,7 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
     int temp;
 
     //debugging
-    bool stop = false;
+    //bool stop = false;
 
     offset = 0;
 
@@ -1742,10 +1768,10 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
     //    printf("to_delete_leaf = (%i, %i)\n", to_delete_leaf[0], to_delete_leaf[1]);
     //}
 
-    while ((bodyIndex + offset) < to_delete_leaf[1] && (bodyIndex + offset) >= to_delete_leaf[0]) {
+    while ((bodyIndex + offset) < to_delete_leaf[1] && (bodyIndex + offset) > to_delete_leaf[0]) {
 
 
-        if ((bodyIndex + offset) == (to_delete_leaf[0]+1)) {
+        /*if ((bodyIndex + offset) == (to_delete_leaf[0])) {
             printf("dunno ... index = %i x = (%f, %f, %f) (index = %i) to_delete_leaf = (%i, %i)\n", bodyIndex + offset, x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset], *index, to_delete_leaf[0], to_delete_leaf[1]);
         }
         if ((bodyIndex + offset) == (to_delete_leaf[1]-1)) {
@@ -1766,10 +1792,10 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
                     //break;
                 }
             }
-        }
+        }*/
 
         //debugging
-        offset += stride;
+        //offset += stride;
 
         /*if (stop) {
             offset += stride;
@@ -1778,9 +1804,9 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
         }*/
 
 
-        /*if (newBody) {
+        if (newBody) {
 
-            stop = false;
+            //stop = false;
 
             newBody = false;
 
@@ -1821,7 +1847,11 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
         int childIndex = child[temp*8 + childPath];
 
         // traverse tree until hitting leaf node
-        while (childIndex >= m) { //n
+        while (childIndex >= m && childIndex < (8*m)) { //n //TODO: check
+
+            //if (childIndex < (8*m)) {
+            //    temp = childIndex;
+            //}
 
             temp = childIndex;
 
@@ -1860,6 +1890,10 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
             atomicAdd(&count[temp], 1);
 
             childIndex = child[8*temp + childPath];
+
+            //if ((bodyIndex+offset) % 100 == 0) {
+            //    printf("bodyIndex + offset = %i -> temp = %i\n", bodyIndex + offset, temp);
+            //}
         }
 
         // if child is not locked
@@ -1867,6 +1901,7 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
 
             int locked = temp * 8 + childPath;
 
+            //lock
             if (atomicCAS(&child[locked], childIndex, -2) == childIndex) {
 
                 // check whether a body is already stored at the location
@@ -1875,21 +1910,22 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
                     child[locked] = bodyIndex + offset;
                 }
                 else {
-                    if (childIndex >= to_delete_leaf[1]) {
-                        printf("ATTENTION! childIndex = %i | to_delete_leaf[1] = %i\n", childIndex, to_delete_leaf[1]);
-                        child[locked] = bodyIndex + offset;
-                        break;
-                    }
+                    //if (childIndex >= to_delete_leaf[1]) {
+                        //printf("ATTENTION! childIndex = %i | to_delete_leaf[1] = %i\n", childIndex, to_delete_leaf[1]);
+                        //child[locked] = bodyIndex + offset;
+                        //break;
+                    //}
                     int patch = 8 * m; //8*n
-                    while (childIndex >= 0 && childIndex < n && !stop) {
+                    while (childIndex >= 0 && childIndex < m) {//TODO: was n
 
                         //debug
                         if (x[childIndex] == x[bodyIndex + offset]) {
-                            printf("ATTENTION (shouldn't happen...): x[%i] = (%f, %f, %f) vs. x[%i] = (%f, %f, %f)\n", childIndex, x[childIndex], y[childIndex], z[childIndex],
-                                   bodyIndex + offset,  x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset]);
-                            child[locked] = bodyIndex + offset;
-                            stop = true;
-                            break;
+                            printf("ATTENTION (shouldn't happen...): x[%i] = (%f, %f, %f) vs. x[%i] = (%f, %f, %f) | to_delete_leaf = (%i, %i)\n",
+                                   childIndex, x[childIndex], y[childIndex], z[childIndex], bodyIndex + offset,  x[bodyIndex + offset],
+                                   y[bodyIndex + offset], z[bodyIndex + offset], to_delete_leaf[0], to_delete_leaf[1]);
+                            //child[locked] = bodyIndex + offset;
+                            //stop = true;
+                            //break;
                         }
 
                         //create a new cell (by atomically requesting the next unused array index)
@@ -1897,9 +1933,9 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
                         //printf("Adding cell!\n");
                         patch = min(patch, cell);
 
-                        if (*index > 831514) {
-                            printf("Why the fuck is the index that huge? index = %i\n", *index);
-                        }
+                        //if (*index > 831514) {
+                        //    printf("Why the fuck is the index that huge? index = %i\n", *index);
+                        //}
 
                         if (patch != cell) {
                             child[8 * temp + childPath] = cell;
@@ -1965,8 +2001,18 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
                 offset += stride;
                 newBody = true;
             }
+            else {
+                //while(atomicCAS(&child[locked], childIndex, -2) != childIndex);
+                //temp = child[locked];
+                //printf("breaking... temp=%i\n", temp);
+                //break;
+            }
         }
-        __syncthreads();*/
+        else {
+            //newBody = true;
+            printf("HALLO temp = %i\n", temp);
+        }
+        __syncthreads();
     }
 }
 

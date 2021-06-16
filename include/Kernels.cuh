@@ -188,7 +188,7 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
                                     float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
                                     unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
                                     int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
-                                    SubDomainKeyTree *s, int n, int m, float diam, float theta/*, int *mutex*/);
+                                    SubDomainKeyTree *s, int n, int m, float diam, float theta, int *mutex);
 
 //TODO: implement
 __global__ void compThetaKernel(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,

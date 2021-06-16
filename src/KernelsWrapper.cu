@@ -820,7 +820,7 @@ float KernelsWrapper::symbolicForce(int relevantIndex, float *x, float *y, float
                                     float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
                                     unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
                                     int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
-                                    SubDomainKeyTree *s, int n, int m, float diam, float theta, /*int *mutex,*/ bool timing) {
+                                    SubDomainKeyTree *s, int n, int m, float diam, float theta, int *mutex, bool timing) {
 
     float elapsedTime = 0.f;
     if (timing) {
@@ -830,10 +830,10 @@ float KernelsWrapper::symbolicForce(int relevantIndex, float *x, float *y, float
         cudaEventRecord(start_t, 0);
 
         //kernel call
-        symbolicForceKernel<<<gridSize, blockSize>>>(relevantIndex, x, y, z, minX, maxX, minY, maxY, minZ, maxZ, child,
+        symbolicForceKernel<<<1, 1/*gridSize, blockSize*/>>>(relevantIndex, x, y, z, minX, maxX, minY, maxY, minZ, maxZ, child,
                                                      domainListIndex, domainListKeys, domainListIndices, domainListLevels,
                                                      domainListCounter, sendIndices, index, particleCounter, s, n, m,
-                                                     diam, theta/*, mutex*/);
+                                                     diam, theta, mutex);
 
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
@@ -843,10 +843,10 @@ float KernelsWrapper::symbolicForce(int relevantIndex, float *x, float *y, float
     }
     else {
         //kernel call
-        symbolicForceKernel<<<gridSize, blockSize>>>(relevantIndex, x, y, z, minX, maxX, minY, maxY, minZ, maxZ, child,
+        symbolicForceKernel<<<1, 1/*gridSize, blockSize*/>>>(relevantIndex, x, y, z, minX, maxX, minY, maxY, minZ, maxZ, child,
                                                      domainListIndex, domainListKeys, domainListIndices, domainListLevels,
                                                      domainListCounter, sendIndices, index, particleCounter, s, n, m,
-                                                     diam, theta/*, mutex*/);
+                                                     diam, theta, mutex);
     }
     return elapsedTime;
 

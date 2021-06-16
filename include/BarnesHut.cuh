@@ -108,6 +108,7 @@ private:
     int *d_domainListCounter;
     int *d_relevantDomainListIndices;
     int *d_sendIndices;
+    int *d_sendIndicesTemp;
 
     int *d_to_delete_cell;
     int *d_to_delete_leaf;
@@ -199,6 +200,8 @@ public:
     void compPseudoParticlesParallel();
 
     void parallelForce();
+
+    int deleteDuplicates(int numItems);
 };
 
 
