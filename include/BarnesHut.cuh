@@ -199,7 +199,7 @@ public:
 
     void compPseudoParticlesParallel();
 
-    void parallelForce();
+    float parallelForce();
 
     int deleteDuplicates(int numItems);
 };

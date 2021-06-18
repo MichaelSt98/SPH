@@ -843,7 +843,7 @@ float KernelsWrapper::symbolicForce(int relevantIndex, float *x, float *y, float
     }
     else {
         //kernel call
-        symbolicForceKernel<<<1, 1/*gridSize, blockSize*/>>>(relevantIndex, x, y, z, minX, maxX, minY, maxY, minZ, maxZ, child,
+        symbolicForceKernel<<</*1, 1*/gridSize, blockSize>>>(relevantIndex, x, y, z, minX, maxX, minY, maxY, minZ, maxZ, child,
                                                      domainListIndex, domainListKeys, domainListIndices, domainListLevels,
                                                      domainListCounter, sendIndices, index, particleCounter, s, n, m,
                                                      diam, theta, mutex);
@@ -976,3 +976,56 @@ float KernelsWrapper::findDuplicates(float *array, int length, SubDomainKeyTree 
     }
     return elapsedTime;
 }
+
+float KernelsWrapper::markDuplicates(int *indices, float *x, float *y, float *z,
+                     float *mass, SubDomainKeyTree *s, int *counter, int length, bool timing) {
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t; // used for timing
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        //kernel call
+        markDuplicatesKernel<<<gridSize, blockSize>>>(indices, x, y, z, mass, s, counter, length);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        //kernel call
+        markDuplicatesKernel<<<1, blockSize>>>(indices, x, y, z, mass, s, counter, length);
+    }
+    return elapsedTime;
+
+}
+
+float KernelsWrapper::removeDuplicates(int *indices, int *removedDuplicatesIndices, int *counter, int length,
+                                             bool timing) {
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t; // used for timing
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        //kernel call
+        removeDuplicatesKernel<<<gridSize, blockSize>>>(indices, removedDuplicatesIndices, counter, length);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        //kernel call
+        removeDuplicatesKernel<<<gridSize, blockSize>>>(indices, removedDuplicatesIndices, counter, length);
+    }
+    return elapsedTime;
+}
+

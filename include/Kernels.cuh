@@ -242,4 +242,9 @@ __device__ int getTreeLevel(int index, int *child, float *x, float *y, float *z,
 
 __global__ void findDuplicatesKernel(float *array, int length, SubDomainKeyTree *s, int *duplicateCounter);
 
+__global__ void markDuplicatesKernel(int *indices, float *x, float *y, float *z,
+                                     float *mass, SubDomainKeyTree *s, int *counter, int length);
+
+__global__ void removeDuplicatesKernel(int *indices, int *removedDuplicatesIndices, int *counter, int length);
+
 #endif //CUDA_NBODY_KERNELS_CUH

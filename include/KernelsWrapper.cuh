@@ -174,6 +174,12 @@ public:
 
     float findDuplicates(float *array, int length, SubDomainKeyTree *s, int *duplicateCounter, bool timing=false);
 
+    float markDuplicates(int *indices, float *x, float *y, float *z, float *mass, SubDomainKeyTree *s, int *counter,
+                         int length, bool timing=false);
+
+    float removeDuplicates(int *indices, int *removedDuplicatesIndices, int *counter, int length,
+                                 bool timing=false);
+
 };
 
 #endif //CUDA_NBODY_KERNELSWRAPPER_H
