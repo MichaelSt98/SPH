@@ -172,7 +172,7 @@ public:
                                float *minZ, float *maxZ, int *to_delete_cell, int *to_delete_leaf,
                                int *domainListIndices, int n, int m, bool timing=false);
 
-    float findDuplicates(float *array, int length, SubDomainKeyTree *s, int *duplicateCounter, bool timing=false);
+    float findDuplicates(float *array, float *array_2, int length, SubDomainKeyTree *s, int *duplicateCounter, bool timing=false);
 
     float markDuplicates(int *indices, float *x, float *y, float *z, float *mass, SubDomainKeyTree *s, int *counter,
                          int length, bool timing=false);

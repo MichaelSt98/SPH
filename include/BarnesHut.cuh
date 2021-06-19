@@ -99,6 +99,7 @@ private:
     int *d_tempIntArray;
 
     float *d_tempArray;
+    float *d_tempArray_2;
     int *d_sortArray;
     int *d_sortArrayOut;
 

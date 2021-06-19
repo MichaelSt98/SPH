@@ -953,7 +953,7 @@ float KernelsWrapper::repairTree(float *x, float *y, float *z, float *vx, float 
 
 }
 
-float KernelsWrapper::findDuplicates(float *array, int length, SubDomainKeyTree *s, int *duplicateCounter, bool timing) {
+float KernelsWrapper::findDuplicates(float *array, float *array_2, int length, SubDomainKeyTree *s, int *duplicateCounter, bool timing) {
     float elapsedTime = 0.f;
     if (timing) {
         cudaEvent_t start_t, stop_t; // used for timing
@@ -962,7 +962,7 @@ float KernelsWrapper::findDuplicates(float *array, int length, SubDomainKeyTree 
         cudaEventRecord(start_t, 0);
 
         //kernel call
-        findDuplicatesKernel<<<gridSize, blockSize>>>(array, length, s, duplicateCounter);
+        findDuplicatesKernel<<<gridSize, blockSize>>>(array, array_2, length, s, duplicateCounter);
 
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
@@ -972,7 +972,7 @@ float KernelsWrapper::findDuplicates(float *array, int length, SubDomainKeyTree 
     }
     else {
         //kernel call
-        findDuplicatesKernel<<<gridSize, blockSize>>>(array, length, s, duplicateCounter);
+        findDuplicatesKernel<<<gridSize, blockSize>>>(array, array_2, length, s, duplicateCounter);
     }
     return elapsedTime;
 }

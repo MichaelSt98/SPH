@@ -240,7 +240,7 @@ __global__ void repairTreeKernel(float *x, float *y, float *z, float *vx, float 
 __device__ int getTreeLevel(int index, int *child, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
                             float *maxY, float *minZ, float *maxZ);
 
-__global__ void findDuplicatesKernel(float *array, int length, SubDomainKeyTree *s, int *duplicateCounter);
+__global__ void findDuplicatesKernel(float *array, float *array_2, int length, SubDomainKeyTree *s, int *duplicateCounter);
 
 __global__ void markDuplicatesKernel(int *indices, float *x, float *y, float *z,
                                      float *mass, SubDomainKeyTree *s, int *counter, int length);

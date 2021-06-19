@@ -131,9 +131,10 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     gpuErrorcheck(cudaMalloc((void**)&d_domainListIndex, sizeof(int)));
     gpuErrorcheck(cudaMalloc((void**)&d_lowestDomainListIndex, sizeof(int)));
 
-    gpuErrorcheck(cudaMalloc((void**)&d_tempIntArray, 400000*sizeof(int)));
+    gpuErrorcheck(cudaMalloc((void**)&d_tempIntArray, numParticles*sizeof(int)));
 
     gpuErrorcheck(cudaMalloc((void**)&d_tempArray, 2*numParticles*sizeof(float)));
+    gpuErrorcheck(cudaMalloc((void**)&d_tempArray_2, 2*numParticles*sizeof(float)));
     gpuErrorcheck(cudaMalloc((void**)&d_sortArray, numParticles*sizeof(int)));
     gpuErrorcheck(cudaMalloc((void**)&d_sortArrayOut, numParticles*sizeof(int)));
 
@@ -624,24 +625,27 @@ void BarnesHut::update(int step)
     //                            d_index, numParticles, numNodes);
 
     //debugging
-    int indexBeforeBuldingTree;
-    cudaMemcpy(&indexBeforeBuldingTree, d_index, sizeof(int), cudaMemcpyDeviceToHost);
-    Logger(INFO) << "indexBeforeBuildingTree: " << indexBeforeBuldingTree;
+    int indexBeforeBuildingTree;
+    cudaMemcpy(&indexBeforeBuildingTree, d_index, sizeof(int), cudaMemcpyDeviceToHost);
+    Logger(INFO) << "indexBeforeBuildingTree: " << indexBeforeBuildingTree;
     Logger(INFO) << "numParticlesLocal = " << numParticlesLocal << ", numParticles = " << numParticles;
     //end:debugging
 
     //debug
-    /*gpuErrorcheck(cudaMemset(d_tempIntArray, 0, 400000*sizeof(int)));
-    KernelHandler.findDuplicates(&d_x[0], numParticlesLocal, d_subDomainHandler, d_tempIntArray, false);
+    gpuErrorcheck(cudaMemset(d_tempIntArray, 0, numParticles*sizeof(int)));
+    KernelHandler.findDuplicates(&d_x[0], &d_y[0], numParticlesLocal, d_subDomainHandler, d_tempIntArray, false);
 
     int duplicates[400000];
     gpuErrorcheck(cudaMemcpy(duplicates, d_tempIntArray, numParticlesLocal * sizeof(int), cudaMemcpyDeviceToHost));
 
+    int duplicateCounterCounter = 0;
     for (int i=0; i<numParticlesLocal; i++) {
         if (duplicates[i] >= 1) {
-            Logger(INFO) << "Duplicate counter [" << i << "] = " << duplicates[i];
+            //Logger(INFO) << "Duplicate counter [" << i << "] = " << duplicates[i];
+            duplicateCounterCounter++;
         }
-    }*/
+    }
+    Logger(INFO) << "duplicateCounterCounter = " << duplicateCounterCounter;
     //end:debug
 
     elapsedTimeKernel = KernelHandler.buildTree(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
@@ -1035,10 +1039,6 @@ int BarnesHut::gatherParticles(bool velocities, bool deviceToHost) {
                 displacements[proc] = particleNumbers[proc-1] + displacements[proc-1];
             }
         }
-        //allocate memory
-        //xAll = new float[totalReceiveLength];
-        //yAll = new float[totalReceiveLength];
-        //zAll = new float[totalReceiveLength];
     }
 
     //collect information
@@ -1104,7 +1104,10 @@ int BarnesHut::sendParticlesEntry(int *sendLengths, int *receiveLengths, float *
 
     if (h_subDomainHandler->rank != 0) {
         Logger(INFO) << "offset = " << offset << ", h_procCounter[h_subDomainHandler->rank] = " << h_procCounter[h_subDomainHandler->rank];
-        KernelHandler.copyArray(&entry[0], &entry[offset /*- h_procCounter[h_subDomainHandler->rank]*/] /*&entry[h_procCounter[h_subDomainHandler->rank - 1]]*/, h_procCounter[h_subDomainHandler->rank]); //float *targetArray, float *sourceArray, int n)
+        KernelHandler.copyArray(&d_tempArray_2[0], &entry[offset], h_procCounter[h_subDomainHandler->rank]);
+        KernelHandler.copyArray(&entry[0], &d_tempArray_2[0], h_procCounter[h_subDomainHandler->rank]);
+        //TODO: problem since source array = target array ?!
+        //KernelHandler.copyArray(&entry[0], &entry[offset /*- h_procCounter[h_subDomainHandler->rank]*/] /*&entry[h_procCounter[h_subDomainHandler->rank - 1]]*/, h_procCounter[h_subDomainHandler->rank]); //float *targetArray, float *sourceArray, int n)
     }
 
     KernelHandler.resetFloatArray(&entry[h_procCounter[h_subDomainHandler->rank]], 0, numParticles-h_procCounter[h_subDomainHandler->rank]); //resetFloatArrayKernel(float *array, float value, int n)
@@ -1483,18 +1486,22 @@ float BarnesHut::parallelForce() {
     gpuErrorcheck(cudaMemcpy(h_min_x, d_min_x, sizeof(float), cudaMemcpyDeviceToHost));
 
     //debug
-    gpuErrorcheck(cudaMemset(d_tempIntArray, 0, 100000*sizeof(int)));
-    KernelHandler.findDuplicates(&d_x[numParticlesLocal], totalReceiveLength, d_subDomainHandler, d_tempIntArray, false);
+    gpuErrorcheck(cudaMemset(d_tempIntArray, 0, numParticles*sizeof(int)));
+    KernelHandler.findDuplicates(&d_x[numParticlesLocal], &d_y[numParticlesLocal], totalReceiveLength, d_subDomainHandler, d_tempIntArray, false);
 
     int duplicates[10000];
     gpuErrorcheck(cudaMemcpy(duplicates, d_tempIntArray, (to_delete_leaf_1-to_delete_leaf_0) * sizeof(int), cudaMemcpyDeviceToHost));
 
+    //int duplicateCounterCounter = 0;
     for (int i=0; i<(to_delete_leaf_1-to_delete_leaf_0); i++) {
         if (duplicates[i] >= 1/*i % 100 == 0*/) {
             Logger(INFO) << "Duplicate counter [" << i << "] = " << duplicates[i];
+            //duplicateCounterCounter++;
         }
     }
     //end:debug
+
+    //Logger(INFO) << "duplicateCounterCounter = " << duplicateCounterCounter;
 
     //debug
     //KernelHandler.sendParticles(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
@@ -1553,9 +1560,9 @@ float BarnesHut::parallelForce() {
 
 
     // repairTree
-    //KernelHandler.repairTree(d_x, d_y, d_z, d_vx, d_vy, d_vz, d_ax, d_ay, d_az, d_mass, d_count, d_start, d_child,
-    //                         d_index, d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z, d_to_delete_cell, d_to_delete_leaf,
-    //                         d_domainListIndices, numParticles, numNodes, false);
+    KernelHandler.repairTree(d_x, d_y, d_z, d_vx, d_vy, d_vz, d_ax, d_ay, d_az, d_mass, d_count, d_start, d_child,
+                             d_index, d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z, d_to_delete_cell, d_to_delete_leaf,
+                             d_domainListIndices, numParticles, numNodes, false);
 
 
 

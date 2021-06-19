@@ -239,14 +239,14 @@ __global__ void sortParticlesProcKernel(float *x, float *y, float *z, float *mas
 
         counter = atomicAdd(&procCounterTemp[proc], 1);
 
-        /*if (proc > 0) {
+        if (proc > 0) {
             sortArray[bodyIndex + offset] = procCounter[proc-1] + counter;
         }
         else {
             sortArray[bodyIndex + offset] = counter;
-        }*/
+        }
 
-        sortArray[bodyIndex + offset] = proc;
+        //sortArray[bodyIndex + offset] = proc;
 
 
         //if ((bodyIndex + offset) == 200000) {
@@ -351,6 +351,7 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
 
     int childPath;
     int temp;
+    int tempTemp;
 
     offset = 0;
 
@@ -399,6 +400,7 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
         // traverse tree until hitting leaf node
         while (childIndex >= m) { //n
 
+            tempTemp = temp;
             temp = childIndex;
 
             childPath = 0;
@@ -455,7 +457,7 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
                         printf("ATTENTION!\n");
                     }
                     int patch = 8 * m; //8*n
-                    while (childIndex >= 0 && childIndex < m) { //TODO: was n
+                    while (childIndex >= 0 && childIndex < n) { //TODO: was n
 
                         //create a new cell (by atomically requesting the next unused array index)
                         int cell = atomicAdd(index, 1);
@@ -483,6 +485,7 @@ __global__ void buildTreeKernel(float *x, float *y, float *z, float *mass, int *
                         start[cell] = -1;
 
                         // insert new particle
+                        tempTemp = temp;
                         temp = cell;
                         childPath = 0;
 
@@ -2114,7 +2117,7 @@ __device__ int getTreeLevel(int index, int *child, float *x, float *y, float *z,
 
 }
 
-__global__ void findDuplicatesKernel(float *array, int length, SubDomainKeyTree *s, int *duplicateCounter) {
+__global__ void findDuplicatesKernel(float *array, float *array_2, int length, SubDomainKeyTree *s, int *duplicateCounter) {
 
     int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
     int stride = blockDim.x * gridDim.x;
@@ -2124,9 +2127,9 @@ __global__ void findDuplicatesKernel(float *array, int length, SubDomainKeyTree 
 
         for (int i=0; i<length; i++) {
             if (i != (bodyIndex + offset)) {
-                if (array[bodyIndex + offset] == array[i]) {
+                if (array[bodyIndex + offset] == array[i] && array_2[bodyIndex + offset] == array_2[i]) {
                     duplicateCounter[i] += 1;
-                    //printf("duplicate! (%i vs. %i)\n", i, bodyIndex + offset);
+                    printf("duplicate! (%i vs. %i) (x = %f, y = %f)\n", i, bodyIndex + offset, array[i], array_2[i]);
                 }
             }
         }
