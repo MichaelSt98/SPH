@@ -36,7 +36,7 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     MPI_Comm_size(MPI_COMM_WORLD, &h_subDomainHandler->numProcesses); //2;
 
     numParticles = p.numberOfParticles; //NUM_BODIES;
-    numNodes = 2 * numParticles + 12000; //4 * numParticles + 12000; //+ 12000; //2 * numParticles + 12000;
+    numNodes = 3 * numParticles + 12000; //4 * numParticles + 12000; //+ 12000; //2 * numParticles + 12000;
     numParticlesLocal = numParticles/h_subDomainHandler->numProcesses;
 
     Logger(DEBUG) << "numParticles: " << numParticles << "  numParticlesLocal: "
@@ -635,7 +635,7 @@ void BarnesHut::update(int step)
     gpuErrorcheck(cudaMemset(d_tempIntArray, 0, numParticles*sizeof(int)));
     KernelHandler.findDuplicates(&d_x[0], &d_y[0], numParticlesLocal, d_subDomainHandler, d_tempIntArray, false);
 
-    int duplicates[400000];
+    int duplicates[524288];
     gpuErrorcheck(cudaMemcpy(duplicates, d_tempIntArray, numParticlesLocal * sizeof(int), cudaMemcpyDeviceToHost));
 
     int duplicateCounterCounter = 0;

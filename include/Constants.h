@@ -31,11 +31,12 @@ const double G = 6.67408e-11;               //! Gravitational constant
 
 
 /// Rendering related
-const int WIDTH = 1024;
-const int HEIGHT = 1024;
-const double RENDER_SCALE = 2.5;
-const double MAX_VEL_COLOR = 1500.0;
-const double MIN_VEL_COLOR = 0;
+const int WIDTH = 512;
+const int HEIGHT = 512;
+const int DEPTH = 512;
+const double RENDER_SCALE = 1.2;
+const double MAX_VEL_COLOR = 1;
+const double MIN_VEL_COLOR = 0.0001;
 const double PARTICLE_BRIGHTNESS = 0.35;
 const double PARTICLE_SHARPNESS = 1.0;
 const int DOT_SIZE = 8;

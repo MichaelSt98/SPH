@@ -1,51 +1,70 @@
 #include "../include/Renderer.h"
 
-Renderer::Renderer(const int _numParticles, const int _width, const int _height, const double _renderScale, const double _maxVelocityColor,
+
+Renderer::Renderer(const int _numParticles, const int _width, const int _height, const int _depth, const double _renderScale, const double _maxVelocityColor,
                    const double _minVelocityColor, const double _particleBrightness, const double _particleSharpness,
                    const int _dotSize, const double _systemSize, const int _renderInterval) :
                         numParticles { _numParticles },
-                        width { _width }, height { _height }, renderScale { _renderScale },
+                        width { _width }, height { _height }, depth { _depth }, renderScale { _renderScale },
                         maxVelocityColor { _maxVelocityColor }, minVelocityColor { _minVelocityColor },
                         particleBrightness { _particleBrightness },
                         particleSharpness { _particleSharpness }, dotSize { _dotSize },
                         systemSize { _systemSize }, renderInterval { _renderInterval } {
 
-    LOGCFG.headers = true;
-    LOGCFG.level = INFO;
-
-    Logger(INFO) << "RENDERING RELATED PARAMETERS";
-    Logger(INFO) << "--------------------------------------";
-    Logger(INFO) << "num Particles:      " << numParticles;
-    Logger(INFO) << "width:              " << width;
-    Logger(INFO) << "height:             " << height;
-    Logger(INFO) << "renderScale:        " << renderScale;
-    Logger(INFO) << "maxVelocityColor:   " << maxVelocityColor;
-    Logger(INFO) << "minVelocityColor:   " << minVelocityColor;
-    Logger(INFO) << "particleBrightness: " << particleBrightness;
-    Logger(INFO) << "particleSharpness:  " << particleSharpness;
-    Logger(INFO) << "dotSize:            " << dotSize;
-    Logger(INFO) << "systemSize:         " << systemSize;
-    Logger(INFO) << "renderInterval:     " << renderInterval;
-    Logger(INFO) << "--------------------------------------";
-
 }
+
+/*Renderer::Renderer(ConfigParser &confP) : Renderer(
+        confP.getVal<int>("numParticles"),
+        confP.getVal<int>("width"),
+        confP.getVal<int>("height"),
+        confP.getVal<int>("depth"),
+        confP.getVal<double>("renderScale"),
+        confP.getVal<double>("maxVelColor"),
+        confP.getVal<double>("minVelColor"),
+        confP.getVal<double>("particleBrightness"),
+        confP.getVal<double>("particleSharpness"),
+        confP.getVal<int>("dotSize"),
+        confP.getVal<double>("systemSize"),
+        confP.getVal<int>("renderInterval")) {
+
+}*/
 
 int Renderer::getRenderInterval() {
     return renderInterval;
 }
 
-void Renderer::createFrame(char* image, double* hdImage, Body* b, int step)
+void Renderer::createFrame(char* image, double* hdImage, Body* p, int step/*, Domain* box*/)
 {
-    Logger(INFO) <<  "Writing frame " << step;
+    Logger(DEBUG) <<  "Writing frame " << step;
 
 
     Logger(DEBUG) << "Clearing Pixels ...";
     renderClear(image, hdImage);
 
+    //Logger(DEBUG) << "Drawing Domain-Box ...";
+    //drawDomainBox(box, hdImage);
 
     Logger(DEBUG) << "Rendering Particles ...";
-    renderBodies(b, hdImage);
+    renderBodies(p, hdImage);
 
+
+    Logger(DEBUG) << "Writing frame to file ...";
+    writeRender(image, hdImage, step);
+}
+
+void Renderer::createFrame(char* image, double* hdImage, Body* p, int* processNum, int numprocs, int step/*, Domain* box*/)
+{
+    Logger(DEBUG) <<  "Writing frame " << step;
+
+
+    Logger(DEBUG) << "Clearing Pixels ...";
+    renderClear(image, hdImage);
+
+    //Logger(DEBUG) << "Drawing Domain-Box ...";
+    //drawDomainBox(box, hdImage);
+
+    Logger(DEBUG) << "Rendering Particles ...";
+    renderBodies(p, processNum, numprocs, hdImage);
 
     Logger(DEBUG) << "Writing frame to file ...";
     writeRender(image, hdImage, step);
@@ -53,15 +72,108 @@ void Renderer::createFrame(char* image, double* hdImage, Body* b, int step)
 
 void Renderer::renderClear(char* image, double* hdImage)
 {
-    memset(image, 0, width*height*3);
-    memset(hdImage, 0, width*height*3*sizeof(double));
+    memset(image, 0, width*2*height*3);
+    memset(hdImage, 0, width*2*height*3*sizeof(double));
 }
 
-void Renderer::renderBodies(Body* b, double* hdImage)
+/*void Renderer::drawDomainBox(Domain* box, double* hdImage){
+
+    const int linew = 4;
+
+    // draw x-y-plane
+    int xlower, xupper, ylower, yupper;
+
+    xlower = toPixelSpace(box->lower[0], width);
+    xupper = toPixelSpace(box->upper[0], width);
+    ylower = toPixelSpace(box->lower[1], height);
+    yupper = toPixelSpace(box->upper[1], height);
+
+    // draw along the x-axis
+    for (int x=xlower; x<=xupper; x++){
+        // draw lower line
+        for (int y=ylower-linew/2;y<=ylower+linew/2;y++){
+            int pix = 3*(x+2*width*y);
+            hdImage[pix+0] = 1.;
+            hdImage[pix+1] = 0.;
+            hdImage[pix+2] = 0.;
+        }
+        // draw upper line
+        for (int y=yupper-linew/2;y<=yupper+linew/2;y++){
+            int pix = 3*(x+2*width*y);
+            hdImage[pix+0] = 1.;
+            hdImage[pix+1] = 0;
+            hdImage[pix+2] = 0;
+        }
+    }
+
+    // draw along the y-axis
+    for (int y=ylower; y<=yupper; y++){
+        // draw left line
+        for (int x=xlower-linew/2;x<=xlower+linew/2;x++){
+            int pix = 3*(x+2*width*y);
+            hdImage[pix+0] = 1.;
+            hdImage[pix+1] = 0.;
+            hdImage[pix+2] = 0.;
+        }
+        // draw right line
+        for (int x=xupper-linew/2;x<=xupper+linew/2;x++){
+            int pix = 3*(x+2*width*y);
+            hdImage[pix+0] = 1.;
+            hdImage[pix+1] = 0;
+            hdImage[pix+2] = 0;
+        }
+    }
+
+    // draw x-z-plane
+    int zlower, zupper;
+
+    zlower = toPixelSpace(box->lower[2], depth);
+    zupper = toPixelSpace(box->upper[2], depth);
+
+    // draw along the x-axis
+    for (int x=xlower; x<=xupper; x++){
+        // draw lower line
+        for (int z=zlower-linew/2;z<=zlower+linew/2;z++){
+            int pix = 3*(x+2*width*z+width);
+            hdImage[pix+0] = 1.;
+            hdImage[pix+1] = 0.;
+            hdImage[pix+2] = 0.;
+        }
+        // draw upper line
+        for (int z=zupper-linew/2;z<=zupper+linew/2;z++){
+            int pix = 3*(x+2*width*z+width);
+            hdImage[pix+0] = 1.;
+            hdImage[pix+1] = 0;
+            hdImage[pix+2] = 0;
+        }
+    }
+
+    // draw along the y-axis
+    for (int z=zlower; z<=zupper; z++){
+        // draw left line
+        for (int x=xlower-linew/2;x<=xlower+linew/2;x++){
+            int pix = 3*(x+2*width*z+width);
+            hdImage[pix+0] = 1.;
+            hdImage[pix+1] = 0.;
+            hdImage[pix+2] = 0.;
+        }
+        // draw right line
+        for (int x=xupper-linew/2;x<=xupper+linew/2;x++){
+            int pix = 3*(x+2*width*z+width);
+            hdImage[pix+0] = 1.;
+            hdImage[pix+1] = 0;
+            hdImage[pix+2] = 0;
+        }
+    }
+
+}*/
+
+void Renderer::renderBodies(Body* p, double* hdImage)
 {
+    /** draw x-y-plane **/
     for(int index=0; index<numParticles; index++)
     {
-        Body *current = &b[index];
+        Body *current = &p[index];
 
         int x = toPixelSpace(current->position.x, width);
         int y = toPixelSpace(current->position.y, height);
@@ -69,32 +181,137 @@ void Renderer::renderBodies(Body* b, double* hdImage)
         if (x>dotSize && x<width-dotSize &&
             y>dotSize && y<height-dotSize)
         {
-            double vMag = current->velocity.magnitude(); //magnitude(current->velocity);
-            colorDot(current->position.x, current->position.y, vMag, hdImage);
+            // vMag needed for coloring
+            double vMag = 0.;
+            vMag += current->velocity.magnitude(); // * current->position.v[d];
+            //vMag = sqrt(vMag);
 
-            /**
-            for (int i_x = int(current->position.x*100 - ((renderScale*systemSize)*100)/200); i_x < int(current->position.x*100 + ((renderScale*systemSize)*100)/200); i_x++) {
-                for (int i_y = int(current->position.x*100 - ((renderScale*systemSize)*100)/200); i_y < int(current->position.x*100 + ((renderScale*systemSize)*100)/200); i_y++) {
-                    colorDot(i_x/100.0, i_y/100.0, vMag, hdImage);
+            /*int i2fPrec = 100; // TODO: rename
+
+            for (int i_x = int(current->position.x[0]*i2fPrec - ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec));
+                i_x < int(current->position.x[0]*i2fPrec + ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec)); i_x++) {
+                for (int i_y = int(current->position.x[1]*i2fPrec - ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec));
+                    i_y < int(current->position.x[1]*i2fPrec + ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec)); i_y++) {
+                    colorDotXY(i_x/(double)i2fPrec, i_y/(double)i2fPrec, vMag, hdImage);
                 }
-            }
-            **/
+            }*/
+
+            colorDotXY(current->position.x, current->position.y, vMag, hdImage);
         }
     }
+
+    /** draw x-z-plane **/
+    for(int index=0; index<numParticles; index++)
+    {
+        Body *current = &p[index];
+
+        int x = toPixelSpace(current->position.x, width);
+        int z = toPixelSpace(current->position.z, depth);
+
+        if (x>dotSize && x<width-dotSize &&
+            z>dotSize && z<depth-dotSize)
+        {
+            // vMag needed for coloring
+            double vMag = 0.;
+            vMag += current->velocity.magnitude(); // * current->position.v[d];
+            //vMag = sqrt(vMag);
+
+            /*int i2fPrec = 100; // TODO: rename
+
+            for (int i_x = int(current->position.x[0]*i2fPrec - ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec));
+                i_x < int(current->position.x[0]*i2fPrec + ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec)); i_x++) {
+                for (int i_y = int(current->position.x[1]*i2fPrec - ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec));
+                    i_y < int(current->position.x[1]*i2fPrec + ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec)); i_y++) {
+                    colorDotXY(i_x/(double)i2fPrec, i_y/(double)i2fPrec, vMag, hdImage);
+                }
+            }*/
+
+            colorDotXZ(current->position.x, current->position.z, vMag, hdImage);
+
+        }
+    }
+
 }
+
+
+void Renderer::renderBodies(Body* p, int* processNum, int numprocs, double* hdImage)
+{
+    /** draw x-y-plane **/
+    for(int index=0; index<numParticles; index++)
+    {
+        Body *current = &p[index];
+
+        int x = toPixelSpace(current->position.x, width);
+        int y = toPixelSpace(current->position.y, height);
+
+        if (x>dotSize && x<width-dotSize &&
+            y>dotSize && y<height-dotSize)
+        {
+            // vMag needed for coloring
+            double vMag = minVelocityColor + (maxVelocityColor-minVelocityColor)/(numprocs - 1) * processNum[index];
+            //vMag = sqrt(vMag);
+
+            /*int i2fPrec = 100; // TODO: rename
+
+            for (int i_x = int(current->position.x[0]*i2fPrec - ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec));
+                i_x < int(current->position.x[0]*i2fPrec + ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec)); i_x++) {
+                for (int i_y = int(current->position.x[1]*i2fPrec - ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec));
+                    i_y < int(current->position.x[1]*i2fPrec + ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec)); i_y++) {
+                    colorDotXY(i_x/(double)i2fPrec, i_y/(double)i2fPrec, vMag, hdImage);
+                }
+            }*/
+
+            colorDotXY(current->position.x, current->position.y, vMag, hdImage);
+        }
+    }
+
+    /** draw x-z-plane **/
+    for(int index=0; index<numParticles; index++)
+    {
+        Body *current = &p[index];
+
+        int x = toPixelSpace(current->position.x, width);
+        int z = toPixelSpace(current->position.z, depth);
+
+        if (x>dotSize && x<width-dotSize &&
+            z>dotSize && z<depth-dotSize)
+        {
+            // vMag needed for coloring
+            double vMag = minVelocityColor + (maxVelocityColor-minVelocityColor)/(numprocs - 1) * processNum[index];
+            //vMag = sqrt(vMag);
+
+            /*int i2fPrec = 100; // TODO: rename
+
+            for (int i_x = int(current->position.x[0]*i2fPrec - ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec));
+                i_x < int(current->position.x[0]*i2fPrec + ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec)); i_x++) {
+                for (int i_y = int(current->position.x[1]*i2fPrec - ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec));
+                    i_y < int(current->position.x[1]*i2fPrec + ((renderScale*systemSize)*i2fPrec)/(2*i2fPrec)); i_y++) {
+                    colorDotXY(i_x/(double)i2fPrec, i_y/(double)i2fPrec, vMag, hdImage);
+                }
+            }*/
+
+            colorDotXZ(current->position.x, current->position.z, vMag, hdImage);
+
+        }
+    }
+
+}
+
 
 double Renderer::toPixelSpace(double p, int size)
 {
     return (size/2.0) * (1.0 + p/(systemSize*renderScale));
 }
 
-void Renderer::colorDot(double x, double y, double vMag, double* hdImage)
+void Renderer::colorDotXY(double x, double y, double vMag, double* hdImage)
 {
     const double velocityMax = maxVelocityColor;
     const double velocityMin = minVelocityColor; //0.0;
 
-    if (vMag < velocityMin)
+    if (vMag < velocityMin){
+        Logger(ERROR) << "In colorDot(): vMag < 0! This should not happen.";
         return;
+    }
 
     const double vPortion = sqrt((vMag-velocityMin) / velocityMax);
 
@@ -114,15 +331,57 @@ void Renderer::colorDot(double x, double y, double vMag, double* hdImage)
                                           (xP+i-toPixelSpace(x, width)),2.0))
                                   + exp(pow(particleSharpness*
                                             (yP+j-toPixelSpace(y, height)),2.0)),/*1.25*/0.75)+1.0);
-            colorAt(int(xP+i),int(yP+j), c, cFactor, hdImage);
+            colorAtXY(int(xP+i),int(yP+j), c, cFactor, hdImage);
         }
     }
 
 }
 
-void Renderer::colorAt(int x, int y, const color& c, double f, double* hdImage)
+void Renderer::colorDotXZ(double x, double z, double vMag, double* hdImage)
 {
-    int pix = 3*(x+width*y);
+    const double velocityMax = maxVelocityColor;
+    const double velocityMin = minVelocityColor; //0.0;
+
+    if (vMag < velocityMin){
+        Logger(ERROR) << "In colorDot(): vMag < 0! This should not happen.";
+        return;
+    }
+
+    const double vPortion = sqrt((vMag-velocityMin) / velocityMax);
+
+    color c;
+    c.r = clamp(4*(vPortion-0.333));
+    c.g = clamp(fmin(4*vPortion,4.0*(1.0-vPortion)));
+    c.b = clamp(4*(0.5-vPortion));
+
+    for (int i=-dotSize/2; i<dotSize/2; i++)
+    {
+        for (int j=-dotSize/2; j<dotSize/2; j++)
+        {
+            double xP = floor(toPixelSpace(x, width));
+            double zP = floor(toPixelSpace(z, depth));
+            double cFactor = particleBrightness /
+                             (pow(exp(pow(particleSharpness*
+                                          (xP+i-toPixelSpace(x, width)),2.0))
+                                  + exp(pow(particleSharpness*
+                                            (zP+j-toPixelSpace(z, depth)),2.0)),/*1.25*/0.75)+1.0);
+            colorAtXZ(int(xP+i),int(zP+j), c, cFactor, hdImage);
+        }
+    }
+
+}
+
+void Renderer::colorAtXY(int x, int y, const color& c, double f, double* hdImage)
+{
+    int pix = 3*(x+2*width*y);
+    hdImage[pix+0] += c.r*f;
+    hdImage[pix+1] += c.g*f;
+    hdImage[pix+2] += c.b*f;
+}
+
+void Renderer::colorAtXZ(int x, int z, const color& c, double f, double* hdImage)
+{
+    int pix = 3*(x+2*width*z+width);
     hdImage[pix+0] += c.r*f;
     hdImage[pix+1] += c.g*f;
     hdImage[pix+2] += c.b*f;
@@ -141,20 +400,21 @@ double Renderer::clamp(double x)
 void Renderer::writeRender(char* data, double* hdImage, int step)
 {
 
-    for (int i=0; i<width*height*3; i++)
+    for (int i=0; i<width*2*height*3; i++)
     {
         data[i] = int(255.0*clamp(hdImage[i]));
     }
 
-    int frame = step/renderInterval + 1;//renderInterval;
+    int frame = step/renderInterval + 1;
     char name[128];
     sprintf(name, "images/Step%05i.ppm", frame);
+
     std::ofstream file (name, std::ofstream::binary);
 
     if (file.is_open())
     {
-        file << "P6\n" << width << " " << height << "\n" << "255\n";
-        file.write(data, width*height*3);
+        file << "P6\n" << 2*width << " " << height << "\n" << "255\n";
+        file.write(data, width*2*height*3);
         file.close();
     }
 

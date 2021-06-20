@@ -121,16 +121,19 @@ int main(int argc, char** argv)
         //Logger(INFO) << "INFO output";
         //Logger(TIME) << "TIME output";
 
-        char *image = new char[WIDTH * HEIGHT * 3];
-        double *hdImage = new double[WIDTH * HEIGHT * 3];
+        char *image = new char[2 * WIDTH * HEIGHT * 3];
+        double *hdImage = new double[2* WIDTH * HEIGHT * 3];
+
+        int *processNum = new int[parameters.numberOfParticles];
 
         Body *bodies = new Body[parameters.numberOfParticles];
 
         BarnesHut *particles = new BarnesHut(parameters);
 
-        Renderer renderer{parameters.numberOfParticles, WIDTH, HEIGHT, RENDER_SCALE, MAX_VEL_COLOR, MIN_VEL_COLOR,
+        Renderer renderer{parameters.numberOfParticles, WIDTH, HEIGHT, DEPTH, RENDER_SCALE, MAX_VEL_COLOR, MIN_VEL_COLOR,
                           PARTICLE_BRIGHTNESS, PARTICLE_SHARPNESS, DOT_SIZE,
-                          5 * particles->getSystemSize(), parameters.renderInterval};
+                          2 * particles->getSystemSize(), parameters.renderInterval};
+
 
         /** Simulation */
         for (int i = 0; i < parameters.iterations; i++) {
@@ -158,9 +161,16 @@ int main(int argc, char** argv)
                     current->velocity.x = particles->all_vx[i_body];
                     current->velocity.y = particles->all_vy[i_body];
                     current->velocity.z = particles->all_vz[i_body];
+
+                    if (i_body < particles->numParticlesLocal) {
+                        processNum[i_body] = 0;
+                    }
+                    else {
+                        processNum[i_body] = 1;
+                    }
                 }
                 if (i % parameters.renderInterval == 0) {
-                    renderer.createFrame(image, hdImage, bodies, i);
+                    renderer.createFrame(image, hdImage, bodies, processNum, numProcesses, i);
                 }
             }
         }

@@ -35,7 +35,7 @@ private:
 
     int step;
     int numParticles;
-    int numParticlesLocal;
+    //int numParticlesLocal; //made public
     int numNodes;
 
     float *h_min_x;
@@ -154,6 +154,8 @@ private:
 public:
 
     bool timeKernels;
+
+    int numParticlesLocal;
 
     float *time_resetArrays;
     float *time_computeBoundingBox;
