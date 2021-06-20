@@ -30,7 +30,7 @@ public:
                       float *minZ, float *maxZ, int n, int m, int *procCounter, int *procCounterTemp,
                       bool timing=false);
 
-    void resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,  int *domainListIndices,
+    float resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,  int *domainListIndices,
                              int *domainListLevels, int *lowestDomainListIndices, int *lowestDomainListIndex,
                              unsigned long *lowestDomainListKeys, unsigned long *sortedLowestDomainListKeys,
                              float *tempArray, int *to_delete_cell, int *to_delete_leaf, int n, int m);
@@ -57,9 +57,6 @@ public:
 
     float resetFloatArray(float *array, float value, int n, bool timing=false);
 
-    float reorderArray(float *array, float *tempArray, SubDomainKeyTree *s, int *procCounter, int *receiveLengths,
-                       bool timing=false);
-
     float sendParticles(float *x, float *y, float *z, float *mass, int *count, int *start, int *child, int *index,
                         float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int n, int m,
                         SubDomainKeyTree *s, int *procCounter, float *tempArray, int *sortArray, int *sortArrayOut,
@@ -79,13 +76,6 @@ public:
     float traverseIterative(float *x, float *y, float *z, float *mass, int *child, int n, int m, SubDomainKeyTree *s,
                             int maxLevel, bool timing=false);
 
-    void createDomainList(float *x, float *y, float *z, float *mass, int *child, int n, SubDomainKeyTree *s,
-                          int maxLevel);
-
-    /*void createDomainList(float *x, float *y, float *z, float *mass, float *minX, float *maxX,
-                                                float *minY, float *maxY, float *minZ, float *maxZ, int *child, int n,
-                                                SubDomainKeyTree *s, int maxLevel);*/
-
     float createDomainList(SubDomainKeyTree *s, int maxLevel, unsigned long *domainListKeys, int *levels, int *index,
                            bool timing=false);
 
@@ -100,14 +90,11 @@ public:
     float update(float *x, float *y, float *z, float *vx, float *vy, float *vz, float *ax, float *ay, float *az, int n,
                  float dt, float d, bool timing=false);
 
-
-
     float lowestDomainListNodes(int *domainListIndices, int *domainListIndex, unsigned long *domainListKeys,
                                                 int *lowestDomainListIndices, int *lowestDomainListIndex,
                                                 unsigned long *lowestDomainListKeys,
                                                 float *x, float *y, float *z, float *mass, int *count, int *start,
                                                 int *child, int n, int m, int *procCounter, bool timing=false);
-
 
     float prepareLowestDomainExchange(float *entry, float *mass, float *tempArray, int *lowestDomainListIndices,
                                            int *lowestDomainListIndex, unsigned long *lowestDomainListKeys,
@@ -141,10 +128,6 @@ public:
                                                 int *domainListIndices, int *domainListIndex,
                                                 int *domainListLevels, int *lowestDomainListIndices,
                                                 int *lowestDomainListIndex, bool timing=false);
-
-
-
-
 
     float collectSendIndices(int *sendIndices, float *entry, float *tempArray, int *domainListCounter,
                                              int sendCount, bool timing=false);

@@ -193,7 +193,7 @@ public:
 
     void sortArrayRadix(float *arrayToSort, float *tempArray, int *keyIn, int *keyOut, int n);
     void sortArrayRadix(float *arrayToSort, float *tempArray, unsigned long *keyIn, unsigned long *keyOut, int n);
-    //int gatherParticles(float *xAll, float *yAll, float *zAll, bool deviceToHost=false);
+
     int gatherParticles(bool velocities=true, bool deviceToHost=false);
 
     int sendParticlesEntry(int *sendLengths, int *receiveLengths, float *entry);
