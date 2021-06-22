@@ -149,12 +149,6 @@ int main(int argc, char** argv)
 
                     Body *current;
                     current = &bodies[i_body];
-                    //current->position.x = particles->h_x[i_body];
-                    //current->position.y = particles->h_y[i_body];
-                    //current->position.z = particles->h_z[i_body];
-                    //current->velocity.x = particles->h_vx[i_body];
-                    //current->velocity.y = particles->h_vy[i_body];
-                    //current->velocity.z = particles->h_vz[i_body];
                     current->position.x = particles->all_x[i_body];
                     current->position.y = particles->all_y[i_body];
                     current->position.z = particles->all_z[i_body];
@@ -162,7 +156,7 @@ int main(int argc, char** argv)
                     current->velocity.y = particles->all_vy[i_body];
                     current->velocity.z = particles->all_vz[i_body];
 
-                    if (i_body < particles->numParticlesLocal) {
+                    if (i_body < particles->getNumParticlesLocal()) {
                         processNum[i_body] = 0;
                     }
                     else {

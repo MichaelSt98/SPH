@@ -15,6 +15,7 @@
 #include <climits> // for ulong_max
 #include <algorithm>
 #include <cmath>
+#include <utility>
 //#define KEY_MAX ULONG_MAX
 
 #define TESTING 0
@@ -30,22 +31,33 @@ class BarnesHut {
 
 private:
 
+    //---- HOST VARIABLES ----------------------------------------------------------------------------------------------
+    // Simulation parameters/settings
     SimulationParameters parameters;
+
+    // Instance to call CUDA Kernels via Wrapper
     KernelsWrapper KernelHandler;
 
+    // process/subdomain handler (MPI rank, number of processes, ...)
+    SubDomainKeyTree *h_subDomainHandler;
+
+    // current iteration step
     int step;
+
+    // total number of particles (on all processes)
     int numParticles;
-    //int numParticlesLocal; //made public
+    // number of particles on process
+    int numParticlesLocal;
+    // number of nodes on process
     int numNodes;
 
+    // bounding box, domain size
     float *h_min_x;
     float *h_max_x;
     float *h_min_y;
     float *h_max_y;
     float *h_min_z;
     float *h_max_z;
-
-    float *h_mass;
 
     int *h_domainListIndices;
     unsigned long *h_domainListKeys;
@@ -54,36 +66,51 @@ private:
 
     int *h_procCounter;
 
-    //changed to public ...
-    /*float *h_x;
+    // particle masses
+    float *h_mass;
+
+    // particle positions
+    float *h_x;
     float *h_y;
     float *h_z;
 
+    // particle velocities
     float *h_vx;
     float *h_vy;
-    float *h_vz;*/
+    float *h_vz;
 
+    // particle accelerations
     float *h_ax;
     float *h_ay;
     float *h_az;
 
+    // children (needed for tree construction)
     int *h_child;
     int *h_start;
     int *h_sorted;
+    // number of children (in order to optimize performance)
     int *h_count;
 
-    //int *h_tempIntArray;
+    //---- DEVICE VARIABLES --------------------------------------------------------------------------------------------
 
-    SubDomainKeyTree *h_subDomainHandler;
+    // process/subdomain handler (MPI rank, number of processes, ...)
+    SubDomainKeyTree *d_subDomainHandler;
+    unsigned long *d_range;
 
+    // lock/mutex
+    int *d_mutex;  //used for locking
+
+    // CUDA performance analysis
+    cudaEvent_t start, stop; // used for timing
+    cudaEvent_t start_global, stop_global; // used for timing
+
+    // bounding box, domain size
     float *d_min_x;
     float *d_max_x;
     float *d_min_y;
     float *d_max_y;
     float *d_min_z;
     float *d_max_z;
-
-    float *d_mass;
 
     int *d_domainListIndices;
     unsigned long *d_domainListKeys;
@@ -114,14 +141,20 @@ private:
     int *d_to_delete_cell;
     int *d_to_delete_leaf;
 
+    // particles masses
+    float *d_mass;
+
+    // particles positions
     float *d_x;
     float *d_y;
     float *d_z;
 
+    // particles velocities
     float *d_vx;
     float *d_vy;
     float *d_vz;
 
+    // particles accelerations
     float *d_ax;
     float *d_ay;
     float *d_az;
@@ -132,16 +165,11 @@ private:
     int *d_sorted;
     int *d_count;
 
-    SubDomainKeyTree *d_subDomainHandler;
-    unsigned long *d_range;
 
-    int *d_mutex;  //used for locking
+    //float *h_output;  //host output array for visualization
+    //float *d_output;  //device output array for visualization
 
-    cudaEvent_t start, stop; // used for timing
-    cudaEvent_t start_global, stop_global; // used for timing
-
-    float *h_output;  //host output array for visualization
-    float *d_output;  //device output array for visualization
+    //---- PRIVATE FUNCTIONS -------------------------------------------------------------------------------------------
 
     void plummerModel(float *mass, float *x, float* y, float* z,
                       float *x_vel, float *y_vel, float *z_vel,
@@ -151,50 +179,13 @@ private:
                    float *x_vel, float *y_vel, float *z_vel,
                    float *x_acc, float *y_acc, float *z_acc, int n);
 
-public:
+    void initRange();
+    void initRange(int binSize);
 
-    bool timeKernels;
-
-    int numParticlesLocal;
-
-    float *time_resetArrays;
-    float *time_computeBoundingBox;
-    float *time_buildTree;
-    float *time_centreOfMass;
-    float *time_sort;
-    float *time_computeForces;
-    float *time_update;
-    float *time_copyDeviceToHost;
-    float *time_all;
-
-    float *h_x;
-    float *h_y;
-    float *h_z;
-
-    float *h_vx;
-    float *h_vy;
-    float *h_vz;
-
-    float *all_x;
-    float *all_y;
-    float *all_z;
-
-    float *all_vx;
-    float *all_vy;
-    float *all_vz;
-
-    BarnesHut(const SimulationParameters p);
-    ~BarnesHut();
-
-    void update(int step);
-    void reset();
-    float getSystemSize();
-    void globalizeBoundingBox();
+    float globalizeBoundingBox(bool timing=false);
 
     void sortArrayRadix(float *arrayToSort, float *tempArray, int *keyIn, int *keyOut, int n);
     void sortArrayRadix(float *arrayToSort, float *tempArray, unsigned long *keyIn, unsigned long *keyOut, int n);
-
-    int gatherParticles(bool velocities=true, bool deviceToHost=false);
 
     int sendParticlesEntry(int *sendLengths, int *receiveLengths, float *entry);
 
@@ -205,6 +196,52 @@ public:
     float parallelForce();
 
     int deleteDuplicates(int numItems);
+
+public:
+
+    // time kernels y/n, comes with some overhead
+    bool timeKernels;
+
+    // arrays to store the time for each iteration (step), for postprocessing...
+    float *time_resetArrays;
+    float *time_computeBoundingBox;
+    float *time_buildTree;
+    float *time_centreOfMass;
+    float *time_sort;
+    float *time_computeForces;
+    float *time_update;
+    float *time_copyDeviceToHost;
+    float *time_all;
+
+    // (all) particle positions for visualization/output/...
+    float *all_x;
+    float *all_y;
+    float *all_z;
+
+    // (all) particle velocities for visualization/output/...
+    float *all_vx;
+    float *all_vy;
+    float *all_vz;
+
+
+    //---- CONSTRUCTOR -------------------------------------------------------------------------------------------------
+
+    BarnesHut(const SimulationParameters p);
+
+    //---- DESTRUCTOR --------------------------------------------------------------------------------------------------
+
+    ~BarnesHut();
+
+    //---- PUBLIC FUNCTIONS --------------------------------------------------------------------------------------------
+    // getter
+    int getNumParticlesLocal();
+    float getSystemSize();
+
+    // "main" function
+    void update(int step);
+
+    // gathering/collecting particles from all processes
+    int gatherParticles(bool velocities=true, bool deviceToHost=false);
 };
 
 

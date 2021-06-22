@@ -33,7 +33,8 @@ public:
     float resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,  int *domainListIndices,
                              int *domainListLevels, int *lowestDomainListIndices, int *lowestDomainListIndex,
                              unsigned long *lowestDomainListKeys, unsigned long *sortedLowestDomainListKeys,
-                             float *tempArray, int *to_delete_cell, int *to_delete_leaf, int n, int m);
+                             float *tempArray, int *to_delete_cell, int *to_delete_leaf, int n, int m,
+                             bool timing=false);
 
     float computeBoundingBox(int *mutex, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
                              float *maxY, float *minZ, float *maxZ, int n, bool timing=false);
@@ -48,16 +49,16 @@ public:
                               float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
                               int *procCounterTemp, bool timing=false);
 
-    float sortParticlesProc(float *x, float *y, float *z, float *mass, int *count, int *start, int *child, int *index,
-                            float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int n,
-                            int m, SubDomainKeyTree *s, int *procCounter, int *procCounterTemp, int *sortArray,
-                            bool timing=false);
+    float markParticlesProcess(float *x, float *y, float *z, float *mass, int *count, int *start, int *child, int *index,
+                               float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int n,
+                               int m, SubDomainKeyTree *s, int *procCounter, int *procCounterTemp, int *sortArray,
+                               bool timing=false);
 
     float copyArray(float *targetArray, float *sourceArray, int n, bool timing=false);
 
     float resetFloatArray(float *array, float value, int n, bool timing=false);
 
-    float sendParticles(float *x, float *y, float *z, float *mass, int *count, int *start, int *child, int *index,
+    float debug(float *x, float *y, float *z, float *mass, int *count, int *start, int *child, int *index,
                         float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int n, int m,
                         SubDomainKeyTree *s, int *procCounter, float *tempArray, int *sortArray, int *sortArrayOut,
                         bool timing=false);
@@ -145,8 +146,10 @@ public:
                                     int *relevantDomainListIndices, SubDomainKeyTree *s, bool timing=false);
 
     float insertReceivedParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
-                                            int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                                            float *minZ, float *maxZ, int *to_delete_leaf, int n, int m, bool timing=false);
+                                  int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                  float *minZ, float *maxZ, int *to_delete_leaf, int *domainListIndices,
+                                  int *domainListIndex, int *lowestDomainListIndices, int *lowestDomainListIndex,
+                                  int n, int m, bool timing=false);
 
 
     float repairTree(float *x, float *y, float *z, float *vx, float *vy, float *vz,

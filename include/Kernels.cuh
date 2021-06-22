@@ -58,16 +58,16 @@ __global__ void particlesPerProcessKernel(float *x, float *y, float *z, float *m
                                     float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
                                     int *procCounterTemp);
 
-__global__ void sortParticlesProcKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
-                                        int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                                        float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
-                                        int *procCounterTemp, int *sortArray);
+__global__ void markParticlesProcessKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
+                                           int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                           float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
+                                           int *procCounterTemp, int *sortArray);
 
 __global__ void copyArrayKernel(float *targetArray, float *sourceArray, int n);
 
 __global__ void resetFloatArrayKernel(float *array, float value, int n);
 
-__global__ void sendParticlesKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
+__global__ void debugKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                     float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
                                     float *tempArray, int *sortArray, int *sortArrayOut);
@@ -176,7 +176,9 @@ __global__ void updateKernel(float *x, float *y, float *z, float *vx, float *vy,
 
 __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                         int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                                        float *minZ, float *maxZ, int *to_delete_leaf, int n, int m);
+                                        float *minZ, float *maxZ, int *to_delete_leaf, int *domainListIndices,
+                                        int *domainListIndex, int *lowestDomainListIndices, int *lowestDomainListIndex,
+                                        int n, int m);
 
 __global__ void repairTreeKernel(float *x, float *y, float *z, float *vx, float *vy, float *vz,
                            float *ax, float *ay, float *az, float *mass, int *count, int *start,

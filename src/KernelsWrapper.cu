@@ -58,7 +58,7 @@ float KernelsWrapper::resetArraysParallel(int *domainListIndex, unsigned long *d
                                           int *domainListLevels, int *lowestDomainListIndices,
                                           int *lowestDomainListIndex, unsigned long *lowestDomainListKeys,
                                           unsigned long *sortedLowestDomainListKeys, float *tempArray,
-                                          int *to_delete_cell, int *to_delete_leaf, int n, int m) {
+                                          int *to_delete_cell, int *to_delete_leaf, int n, int m, bool timing) {
 
     float elapsedTime = 0.f;
     if (timing) {
@@ -199,10 +199,10 @@ float KernelsWrapper::particlesPerProcess(float *x, float *y, float *z, float *m
     return elapsedTime;
 }
 
-float KernelsWrapper::sortParticlesProc(float *x, float *y, float *z, float *mass, int *count, int *start, int *child,
-                                        int *index, float *minX, float *maxX, float *minY, float *maxY, float *minZ,
-                                        float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
-                                        int *procCounterTemp, int *sortArray, bool timing) {
+float KernelsWrapper::markParticlesProcess(float *x, float *y, float *z, float *mass, int *count, int *start, int *child,
+                                           int *index, float *minX, float *maxX, float *minY, float *maxY, float *minZ,
+                                           float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
+                                           int *procCounterTemp, int *sortArray, bool timing) {
 
     float elapsedTime = 0.f;
     if (timing) {
@@ -211,9 +211,9 @@ float KernelsWrapper::sortParticlesProc(float *x, float *y, float *z, float *mas
         cudaEventCreate(&stop_t);
         cudaEventRecord(start_t, 0);
 
-        sortParticlesProcKernel<<< gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
-                                                         minX, maxX, minY, maxY, minZ, maxZ, n, m, s,
-                                                         procCounter, procCounterTemp, sortArray);
+        markParticlesProcessKernel<<< gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
+                                                              minX, maxX, minY, maxY, minZ, maxZ, n, m, s,
+                                                              procCounter, procCounterTemp, sortArray);
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
         cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
@@ -221,9 +221,9 @@ float KernelsWrapper::sortParticlesProc(float *x, float *y, float *z, float *mas
         cudaEventDestroy(stop_t);
     }
     else {
-        sortParticlesProcKernel<<< gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
-                                                           minX, maxX, minY, maxY, minZ, maxZ, n, m, s,
-                                                           procCounter, procCounterTemp, sortArray);
+        markParticlesProcessKernel<<< gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
+                                                              minX, maxX, minY, maxY, minZ, maxZ, n, m, s,
+                                                              procCounter, procCounterTemp, sortArray);
     }
     return elapsedTime;
 }
@@ -274,7 +274,7 @@ float KernelsWrapper::resetFloatArray(float *array, float value, int n, bool tim
     return elapsedTime;
 }
 
-float KernelsWrapper::sendParticles(float *x, float *y, float *z, float *mass, int *count, int *start, int *child,
+float KernelsWrapper::debug(float *x, float *y, float *z, float *mass, int *count, int *start, int *child,
                                     int *index, float *minX, float *maxX, float *minY, float *maxY, float *minZ,
                                     float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter, float *tempArray,
                                     int *sortArray, int *sortArrayOut, bool timing) {
@@ -286,7 +286,7 @@ float KernelsWrapper::sendParticles(float *x, float *y, float *z, float *mass, i
         cudaEventCreate(&stop_t);
         cudaEventRecord(start_t, 0);
 
-        sendParticlesKernel<<< 1, 1/*gridSize, blockSize*/ >>>(x, y, z, mass, count, start, child, index,
+        debugKernel<<< 1, 1/*gridSize, blockSize*/ >>>(x, y, z, mass, count, start, child, index,
                                                    minX, maxX, minY, maxY, minZ, maxZ, n, m, s, procCounter,
                                                    tempArray, sortArray, sortArrayOut);
 
@@ -297,7 +297,7 @@ float KernelsWrapper::sendParticles(float *x, float *y, float *z, float *mass, i
         cudaEventDestroy(stop_t);
     }
     else {
-        sendParticlesKernel<<< 1, 1/*gridSize, blockSize*/ >>>(x, y, z, mass, count, start, child, index,
+        debugKernel<<< 1, 1/*gridSize, blockSize*/ >>>(x, y, z, mass, count, start, child, index,
                                                                minX, maxX, minY, maxY, minZ, maxZ, n, m, s, procCounter,
                                                                tempArray, sortArray, sortArrayOut);
     }
@@ -830,8 +830,10 @@ float KernelsWrapper::compTheta(float *x, float *y, float *z, float *minX, float
 
 float KernelsWrapper::insertReceivedParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
                                               int *child, int *index, float *minX, float *maxX, float *minY,
-                                              float *maxY, float *minZ, float *maxZ, int *to_delete_leaf, int n, int m,
-                                              bool timing) {
+                                              float *maxY, float *minZ, float *maxZ, int *to_delete_leaf,
+                                              int *domainListIndices, int *domainListIndex,
+                                              int *lowestDomainListIndices, int *lowestDomainListIndex,
+                                              int n, int m, bool timing) {
 
     float elapsedTime = 0.f;
     if (timing) {
@@ -841,7 +843,9 @@ float KernelsWrapper::insertReceivedParticles(float *x, float *y, float *z, floa
         cudaEventRecord(start_t, 0);
 
         insertReceivedParticlesKernel<<<gridSize, blockSize>>>(x, y, z, mass, count, start, child, index, minX, maxX,
-                                                               minY, maxY, minZ, maxZ, to_delete_leaf, n, m);
+                                                               minY, maxY, minZ, maxZ, to_delete_leaf,
+                                                               domainListIndices, domainListIndex,
+                                                               lowestDomainListIndices, lowestDomainListIndex, n, m);
 
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
@@ -851,7 +855,9 @@ float KernelsWrapper::insertReceivedParticles(float *x, float *y, float *z, floa
     }
     else {
         insertReceivedParticlesKernel<<<gridSize, blockSize>>>(x, y, z, mass, count, start, child, index, minX, maxX,
-                                                               minY, maxY, minZ, maxZ, to_delete_leaf, n, m);
+                                                               minY, maxY, minZ, maxZ, to_delete_leaf,
+                                                               domainListIndices, domainListIndex,
+                                                               lowestDomainListIndices, lowestDomainListIndex, n, m);
     }
     return elapsedTime;
 }
