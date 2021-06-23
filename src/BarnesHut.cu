@@ -37,6 +37,100 @@ void BarnesHut::initRange(int binSize) {
     //  contiguous histogram bins ...
 }
 
+void BarnesHut::newLoadDistribution() {
+    Logger(INFO) << "numParticlesLocal = " << numParticlesLocal;
+
+    int *particleCounts = new int[h_subDomainHandler->numProcesses];
+
+    MPI_Allgather(&numParticlesLocal, 1, MPI_FLOAT, particleCounts, 1, MPI_FLOAT, MPI_COMM_WORLD);
+
+    for (int i=0; i<h_subDomainHandler->numProcesses; i++) {
+        Logger(INFO) << "numParticles on process: " << i << " = " << particleCounts[i];
+    }
+
+    updateRangeApproximately();
+
+    /*oldDist[0] = 0;
+    for (int i=0; i < numProcesses; i++) {
+        oldDist[i + 1] = oldDist[i] + particleCounts[i];
+    }
+
+    for (int i=0; i <= numProcesses; i++) {
+        newDist[i] = (i * oldDist[numProcesses]) / numProcesses;
+    }
+
+    for (int i=0; i <= numProcesses; i++) {
+        range[i] = 0UL;
+    }
+
+    int p = 0;
+    int n = oldDist[rank];
+
+    while (n > newDist[p]) {
+        p++;
+    }
+    updateRange(n, p, newDist);
+
+    range[0] = 0UL;
+    range[numProcesses] = KEY_MAX;
+
+    KeyType sendRange[numProcesses+1];
+    std::copy(range, range+numProcesses+1, sendRange);
+
+    //boost::mpi::all_reduce(comm, sendRange, numProcesses+1, range, boost::mpi::maximum<KeyType>());
+    boost::mpi::all_reduce(comm, sendRange, numProcesses+1, range, boost::mpi::KeyMaximum<KeyType>());*/
+
+    delete [] particleCounts;
+}
+
+void BarnesHut::updateRange() {
+    // calculate keys for all particles
+    //  Con: need for allocation of unsigned long[numParticlesLocal]
+    // sort keys
+    // take key from allKeysSorted[aimNumberOfParticles] as range
+    // communicate new ranges among processes
+    // ...
+}
+
+void BarnesHut::updateRangeApproximately(int bins) {
+    // introduce "bin size" regarding keys
+    //  keyHistRanges = [0, 1 * binSize, 2 * binSize, ... ]
+    // calculate key of particles on the fly and assign to keyHistRanges
+    //  keyHistNumbers = [1023, 50032, ...]
+    // take corresponding keyHistRange as new range if (sum(keyHistRange[i]) > aimNumberOfParticles ...
+    // communicate new ranges among processes
+    // ...
+    unsigned long *h_keyHistRanges = new unsigned long[bins];
+    //int *h_keyHistCounts = new int[bin-1];
+    unsigned long *d_keyHistRanges;
+    int *d_keyHistCounts;
+    gpuErrorcheck(cudaMalloc((void**)&d_keyHistRanges, bins*sizeof(unsigned long)));
+    gpuErrorcheck(cudaMalloc((void**)&d_keyHistCounts, (bins-1)*sizeof(int)));
+
+    // TODO: that can be done on the GPU directly (!?)
+    unsigned long max_key = 1UL << 63;
+    for (int i=0; i<bins; i++) {
+        h_keyHistRanges[i] = i * (max_key/bins);
+    }
+    h_keyHistRanges[bins-1] = KEY_MAX;
+    gpuErrorcheck(cudaMemcpy(d_keyHistRanges, h_keyHistRanges, bins*sizeof(int), cudaMemcpyHostToDevice));
+    // end: move to GPU ...
+
+
+    KernelHandler.keyHistCounter(d_keyHistRanges, d_keyHistCounts, bins, numParticlesLocal,
+                                 d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x,
+                                 d_max_x, d_min_y, d_max_y, d_min_z, d_max_z, d_subDomainHandler, false);
+
+    KernelHandler.calculateNewRange(d_keyHistRanges, d_keyHistCounts, bins, numParticlesLocal,
+                                    d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x,
+                                    d_max_x, d_min_y, d_max_y, d_min_z, d_max_z, d_subDomainHandler, false);
+
+    delete [] h_keyHistRanges;
+    //delete [] keyHistCounts;
+    gpuErrorcheck(cudaFree(d_keyHistRanges));
+    gpuErrorcheck(cudaFree(d_keyHistCounts));
+}
+
 BarnesHut::BarnesHut(const SimulationParameters p) {
 
     parameters = p;
@@ -222,7 +316,7 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     gpuErrorcheck(cudaMemcpy(d_az, h_az, numParticlesLocal*sizeof(float), cudaMemcpyHostToDevice));
 }
 
-//TODO: free missing allocated memory
+//TODO: free missing allocated memory (check with cuda-memcheck)
 BarnesHut::~BarnesHut() {
 
     delete h_min_x;
@@ -346,9 +440,11 @@ int BarnesHut::getNumParticlesLocal() {
 void BarnesHut::update(int step)
 {
 
-    int device;
-    gpuErrorcheck(cudaGetDevice(&device));
-    Logger(INFO) << "update() on device " << device << "...";
+    //int device;
+    //gpuErrorcheck(cudaGetDevice(&device));
+    //Logger(INFO) << "update() on device " << device << "...";
+
+    newLoadDistribution();
 
     /*RESETTING ARRAYS*************************************************************************/
     float elapsedTime;
@@ -373,7 +469,7 @@ void BarnesHut::update(int step)
     if (timeKernels) {
         Logger(TIME) << "\tResetting device variables: " << elapsedTimeKernel << " ms";
     }
-    /*resetting arrays*************************************************************************/
+    /*resetting arrays*************************************************************************
 
     /*COMPUTE BOUNDING BOX*********************************************************************/
     // calculating bounding boxes (locally)
@@ -1025,14 +1121,12 @@ int BarnesHut::sendParticlesEntry(int *sendLengths, int *receiveLengths, float *
         offset += h_procCounter[i];
     }
 
-    //TODO: just copy the "overlap" to the beginning of the array
-    // thus no need for two arrays and less entries to be copied!
     if (h_subDomainHandler->rank != 0) {
-        Logger(INFO) << "offset = " << offset << ", h_procCounter[h_subDomainHandler->rank] = " << h_procCounter[h_subDomainHandler->rank];
+        //Logger(INFO) << "offset = " << offset << ", h_procCounter[h_subDomainHandler->rank] = " << h_procCounter[h_subDomainHandler->rank];
         //copying "overlap"
-        //if (offset > 0) {
-        //    KernelHandler.copyArray(&entry[0], &entry[h_procCounter[h_subDomainHandler->rank] - offset], offset);
-        //}
+        if (offset > 0 && (h_procCounter[h_subDomainHandler->rank] - offset) > 0) {
+            KernelHandler.copyArray(&entry[0], &entry[h_procCounter[h_subDomainHandler->rank] - offset], offset);
+        }
         //working solution:
         KernelHandler.copyArray(&d_tempArray_2[0], &entry[offset], h_procCounter[h_subDomainHandler->rank]);
         KernelHandler.copyArray(&entry[0], &d_tempArray_2[0], h_procCounter[h_subDomainHandler->rank]);
@@ -1061,7 +1155,7 @@ void BarnesHut::compPseudoParticlesParallel() {
 
     // zero domain list nodes (if needed)
     KernelHandler.zeroDomainListNodes(d_domainListIndex, d_domainListIndices, d_lowestDomainListIndex,
-                                      d_lowestDomainListIndices, d_x, d_y, d_z, d_mass, false); //TODO: needed
+                                      d_lowestDomainListIndices, d_x, d_y, d_z, d_mass, false); //TODO: needed to zero domain list nodes?
 
     // compute local pseudo particles (not for domain list nodes, at least not for the upper domain list nodes)
     KernelHandler.compLocalPseudoParticlesPar(d_x, d_y, d_z, d_mass, d_index, numParticles, d_domainListIndices,
@@ -1170,8 +1264,6 @@ void BarnesHut::compPseudoParticlesParallel() {
     /* ------------------------------------------------------------------------------------------------ */
 
     //end: for all entries!
-    //TODO: don't forget to divide by the mass
-    //TODO: check if it works and then do it for all of them */
     KernelHandler.compLowestDomainListNodes(d_x, d_y, d_z, d_mass, d_lowestDomainListIndices, d_lowestDomainListIndex,
                                             d_lowestDomainListKeys, d_sortedLowestDomainListKeys,
                                             d_lowestDomainListCounter, false);
@@ -1213,14 +1305,16 @@ void BarnesHut::exchangeParticleEntry(int *sendLengths, int *receiveLengths, flo
 
 }
 
-//TODO: sorting?!
-//TODO: update procCounter when received or introduce new variable?
 float BarnesHut::parallelForce() {
 
     //debugging
     KernelHandler.resetFloatArray(d_tempArray, 0.f, 2*numParticles, false);
 
     gpuErrorcheck(cudaMemset(d_domainListCounter, 0, sizeof(int)));
+
+    //KernelHandler.domainListInfo(d_x, d_y, d_z, d_mass, d_child, d_index, numParticlesLocal,
+    //                             d_domainListIndices, d_domainListIndex, d_domainListLevels, d_lowestDomainListIndices,
+    //                             d_lowestDomainListIndex, d_subDomainHandler, false);
 
     //compTheta
     KernelHandler.compTheta(d_x, d_y, d_z, d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z, d_domainListIndex, d_domainListCounter,
@@ -1268,7 +1362,6 @@ float BarnesHut::parallelForce() {
     Logger(INFO) << "sendCountTemp: " << sendCountTemp;
 
     int newSendCount;
-    //TODO: remove duplicates in d_SendIndices
     gpuErrorcheck(cudaMemset(d_domainListCounter, 0, sizeof(int)));
     KernelHandler.markDuplicates(d_sendIndicesTemp, d_x, d_y, d_z, d_mass, d_subDomainHandler, d_domainListCounter,
                                  sendCountTemp, false);
@@ -1444,7 +1537,7 @@ float BarnesHut::parallelForce() {
 
     //actual (local) force
     elapsedTime = KernelHandler.computeForces(d_x, d_y, d_z, d_vx, d_vy, d_vz, d_ax, d_ay, d_az, d_mass, d_sorted, d_child,
-                                d_min_x, d_max_x, numParticlesLocal, parameters.gravity, true); //TODO: numParticlesLocal or numParticles?
+                                d_min_x, d_max_x, numParticlesLocal, numParticles, parameters.gravity, true); //TODO: numParticlesLocal or numParticles?
 
 
     // repairTree

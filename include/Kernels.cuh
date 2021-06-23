@@ -84,6 +84,11 @@ __global__ void treeInfoKernel(float *x, float *y, float *z, float *mass, int *c
                                float *minZ, float *maxZ, int n, int m, int *procCounter, SubDomainKeyTree *s,
                                int *sortArray, int *sortArrayOut);
 
+__global__ void domainListInfoKernel(float *x, float *y, float *z, float *mass, int *child, int *index, int n,
+                                     int *domainListIndices, int *domainListIndex,
+                                     int *domainListLevels, int *lowestDomainListIndices,
+                                     int *lowestDomainListIndex, SubDomainKeyTree *s);
+
 __device__ void key2Char(unsigned long key, int maxLevel, char *keyAsChar);
 
 __global__ void getParticleKeyKernel(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
@@ -149,7 +154,7 @@ __global__ void sortKernel(int *count, int *start, int *sorted, int *child, int 
  */
 __global__ void computeForcesKernel(float* x, float *y, float *z, float *vx, float *vy, float *vz,
                                     float *ax, float *ay, float *az, float *mass, int *sorted, int *child,
-                                    float *minX, float *maxX, int n, float g, int blockSize, int warp, int stackSize);
+                                    float *minX, float *maxX, int n, int m, float g, int blockSize, int warp, int stackSize);
 
 
 __device__ float smallestDistance(float* x, float *y, float *z, int node1, int node2);
@@ -196,4 +201,15 @@ __global__ void markDuplicatesKernel(int *indices, float *x, float *y, float *z,
 
 __global__ void removeDuplicatesKernel(int *indices, int *removedDuplicatesIndices, int *counter, int length);
 
+__global__ void getParticleCount(int *child, int *count, int *particleCount);
+
+__global__ void keyHistCounterKernel(unsigned long *keyHistRanges, int *keyHistCounts, int bins, int n,
+                                     float *x, float *y, float *z, float *mass, int *count, int *start,
+                                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                     float *minZ, float *maxZ, SubDomainKeyTree *s);
+
+__global__ void calculateNewRangeKernel(unsigned long *keyHistRanges, int *keyHistCounts, int bins, int n,
+                                        float *x, float *y, float *z, float *mass, int *count, int *start,
+                                        int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                        float *minZ, float *maxZ, SubDomainKeyTree *s);
 #endif //CUDA_NBODY_KERNELS_CUH

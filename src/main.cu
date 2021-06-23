@@ -156,12 +156,13 @@ int main(int argc, char** argv)
                     current->velocity.y = particles->all_vy[i_body];
                     current->velocity.z = particles->all_vz[i_body];
 
-                    if (i_body < particles->getNumParticlesLocal()) {
+                    processNum[i_body] = 0;
+                    /*if (i_body < particles->getNumParticlesLocal()) {
                         processNum[i_body] = 0;
                     }
                     else {
                         processNum[i_body] = 1;
-                    }
+                    }*/
                 }
                 if (i % parameters.renderInterval == 0) {
                     renderer.createFrame(image, hdImage, bodies, processNum, numProcesses, i);

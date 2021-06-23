@@ -169,6 +169,34 @@ float KernelsWrapper::treeInfo(float *x, float *y, float *z, float *mass, int *c
     return elapsedTime;
 }
 
+float KernelsWrapper::domainListInfo(float *x, float *y, float *z, float *mass, int *child, int *index, int n,
+                                           int *domainListIndices, int *domainListIndex,
+                                           int *domainListLevels, int *lowestDomainListIndices,
+                                           int *lowestDomainListIndex, SubDomainKeyTree *s, bool timing) {
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t;
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        domainListInfoKernel<<< gridSize, blockSize >>>(x, y, z, mass, child, index, n, domainListIndices, domainListIndex, domainListLevels,
+                             lowestDomainListIndices, lowestDomainListIndex, s);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        domainListInfoKernel<<<gridSize, blockSize>>>(x, y, z, mass, child, index, n, domainListIndices, domainListIndex, domainListLevels,
+                             lowestDomainListIndices, lowestDomainListIndex, s);
+    }
+    return elapsedTime;
+}
+
 float KernelsWrapper::particlesPerProcess(float *x, float *y, float *z, float *mass, int *count, int *start, int *child,
                                           int *index, float *minX, float *maxX, float *minY, float *maxY, float *minZ,
                                           float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
@@ -452,7 +480,7 @@ float KernelsWrapper::sort(int *count, int *start, int *sorted, int *child, int 
 
 float KernelsWrapper::computeForces(float *x, float *y, float *z, float *vx, float *vy, float *vz, float *ax, float *ay,
                                     float *az, float *mass, int *sorted, int *child, float *minX, float *maxX, int n,
-                                    float g, bool timing) {
+                                    int m, float g, bool timing) {
 
     float elapsedTime = 0.f;
     if (timing) {
@@ -462,7 +490,7 @@ float KernelsWrapper::computeForces(float *x, float *y, float *z, float *vx, flo
         cudaEventRecord(start_t, 0);
 
         computeForcesKernel<<<gridSize, blockSize, (sizeof(float)+sizeof(int))*stackSize*blockSizeInt/warp>>>(x, y, z, vx, vy, vz, ax, ay, az,
-                mass, sorted, child, minX, maxX, n, g, blockSizeInt, warp, stackSize);
+                mass, sorted, child, minX, maxX, n, m, g, blockSizeInt, warp, stackSize);
 
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
@@ -472,7 +500,7 @@ float KernelsWrapper::computeForces(float *x, float *y, float *z, float *vx, flo
     }
     else {
         computeForcesKernel<<<gridSize, blockSize, (sizeof(float)+sizeof(int))*stackSize*blockSizeInt/warp>>>(x, y, z, vx, vy, vz, ax, ay, az,
-                                                     mass, sorted, child, minX, maxX, n, g, blockSizeInt, warp, stackSize);
+                                                     mass, sorted, child, minX, maxX, n, m, g, blockSizeInt, warp, stackSize);
     }
     return elapsedTime;
 }
@@ -962,4 +990,60 @@ float KernelsWrapper::removeDuplicates(int *indices, int *removedDuplicatesIndic
         removeDuplicatesKernel<<<gridSize, blockSize>>>(indices, removedDuplicatesIndices, counter, length);
     }
     return elapsedTime;
+}
+
+float KernelsWrapper::keyHistCounter(unsigned long *keyHistRanges, int *keyHistCounts, int bins, int n,
+                     float *x, float *y, float *z, float *mass, int *count, int *start,
+                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                     float *minZ, float *maxZ, SubDomainKeyTree *s, bool timing) {
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t;
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        keyHistCounterKernel<<<gridSize, blockSize>>>(keyHistRanges, keyHistCounts, bins, n, x, y, z, mass, count,
+                                                      start, child, index, minX, maxX, minY, maxY, minZ, maxZ, s);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    } else {
+        keyHistCounterKernel<<<gridSize, blockSize>>>(keyHistRanges, keyHistCounts, bins, n, x, y, z, mass, count,
+                                                      start, child, index, minX, maxX, minY, maxY, minZ, maxZ, s);
+    }
+    return elapsedTime;
+}
+
+float KernelsWrapper::calculateNewRange(unsigned long *keyHistRanges, int *keyHistCounts, int bins, int n,
+                        float *x, float *y, float *z, float *mass, int *count, int *start,
+                        int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                        float *minZ, float *maxZ, SubDomainKeyTree *s, bool timing) {
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t;
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        calculateNewRangeKernel<<<gridSize, blockSize>>>(keyHistRanges, keyHistCounts, bins, n, x, y, z, mass, count,
+                                                        start, child, index, minX, maxX, minY, maxY, minZ, maxZ, s);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        calculateNewRangeKernel<<<gridSize, blockSize>>>(keyHistRanges, keyHistCounts, bins, n, x, y, z, mass, count,
+                                                         start, child, index, minX, maxX, minY, maxY, minZ, maxZ, s);
+    }
+    return elapsedTime;
+
 }

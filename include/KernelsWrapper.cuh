@@ -71,6 +71,11 @@ public:
                    float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int n, int m,
                    int *procCounter, SubDomainKeyTree *s, int *sortArray, int *sortArrayOut, bool timing=false);
 
+    float domainListInfo(float *x, float *y, float *z, float *mass, int *child, int *index, int n,
+                         int *domainListIndices, int *domainListIndex,
+                         int *domainListLevels, int *lowestDomainListIndices,
+                         int *lowestDomainListIndex, SubDomainKeyTree *s, bool timing=false);
+
     float getParticleKey(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY, float *minZ,
                          float *maxZ, unsigned long *key, int maxLevel, int n, SubDomainKeyTree *s, bool timing=false);
 
@@ -85,7 +90,7 @@ public:
     float sort(int *count, int *start, int *sorted, int *child, int *index, int n, bool timing=false);
 
     float computeForces(float *x, float *y, float *z, float *vx, float *vy, float *vz, float *ax, float *ay, float *az,
-                        float *mass, int *sorted, int *child, float *minX, float *maxX, int n, float g,
+                        float *mass, int *sorted, int *child, float *minX, float *maxX, int n, int m, float g,
                         bool timing=false);
 
     float update(float *x, float *y, float *z, float *vx, float *vy, float *vz, float *ax, float *ay, float *az, int n,
@@ -165,6 +170,16 @@ public:
 
     float removeDuplicates(int *indices, int *removedDuplicatesIndices, int *counter, int length,
                                  bool timing=false);
+
+    float keyHistCounter(unsigned long *keyHistRanges, int *keyHistCounts, int bins, int n,
+                                         float *x, float *y, float *z, float *mass, int *count, int *start,
+                                         int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                         float *minZ, float *maxZ, SubDomainKeyTree *s, bool timing=false);
+
+    float calculateNewRange(unsigned long *keyHistRanges, int *keyHistCounts, int bins, int n,
+                                            float *x, float *y, float *z, float *mass, int *count, int *start,
+                                            int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
+                                            float *minZ, float *maxZ, SubDomainKeyTree *s, bool timing=false);
 
 };
 

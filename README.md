@@ -1,34 +1,50 @@
 # Multi-GPU SPH/NBody using CUDA aware MPI
 
 
-* This repository aims to implement a **Multi-GPU SPH/NBody algorithm using CUDA aware MPI** by combining ideas from:
-	* **Single-GPU version adopted from:**
-		* [An Efficient CUDA Implementation of the Tree-Based Barnes Hut n-Body Algorithm](https://iss.oden.utexas.edu/Publications/Papers/burtscher11.pdf)
-		* [Patistar/Nbody-Barnes-Hut-CUDA](https://github.com/Patistar/Nbody-Barnes-Hut-CUDA)
-		* [bneukom/gpu-nbody](https://github.com/bneukom/gpu-nbody)
-		* [Implementation: MichaelSt98/NNS](https://github.com/MichaelSt98/NNS/tree/main/3D/CUDA/CUDA_NBody) CUDA\_NBody
-	* **Multi-Node (or rather Multi-CPU) version adopted from:**
-		* M. Griebel, S. Knapek, and G. Zumbusch. Numerical Simulation in Molecular Dynamics: Numerics, Algorithms, Parallelization, Applications. 1st. Springer Pub- lishing Company, Incorporated, 2010. isbn: 3642087760
-		* [Implementation: MichaelSt98/NNS (branch: MolecularDynamics)](https://github.com/MichaelSt98/NNS/tree/MolecularDynamics/MolecularDynamics/BarnesHutParallel)
+This repository aims to implement a **Multi-GPU SPH/NBody algorithm using CUDA aware MPI** by combining ideas from:
 
+* **Single-GPU version adopted from:**
+	* [An Efficient CUDA Implementation of the Tree-Based Barnes Hut n-Body Algorithm](https://iss.oden.utexas.edu/Publications/Papers/burtscher11.pdf)
+	* [Patistar/Nbody-Barnes-Hut-CUDA](https://github.com/Patistar/Nbody-Barnes-Hut-CUDA)
+	* [bneukom/gpu-nbody](https://github.com/bneukom/gpu-nbody)
+	* [Implementation: MichaelSt98/NNS](https://github.com/MichaelSt98/NNS/tree/main/3D/CUDA/CUDA_NBody) CUDA\_NBody
+* **Multi-Node (or rather Multi-CPU) version adopted from:**
+	* M. Griebel, S. Knapek, and G. Zumbusch. Numerical Simulation in Molecular Dynamics: Numerics, Algorithms, Parallelization, Applications. 1st. Springer Pub- lishing Company, Incorporated, 2010. isbn: 3642087760
+	* [Implementation: MichaelSt98/NNS (branch: MolecularDynamics)](https://github.com/MichaelSt98/NNS/tree/MolecularDynamics/MolecularDynamics/BarnesHutParallel)
 
-## Samples 
-
-Single-GPU example output: 
-
-![Single-GPU example](resources/figures/Single-GPU.gif)
-
-Multi-CPU example output (2 processes, thus 2 cores):
-
-![Multi-CPU example](resources/figures/Multi-CPU.gif)
-
+**Primary aim is a proof of concept**, secondary is the optimization/fine-tuning. The (approximative) NBody algorithm is commonly recursively implemented, but GPUs are not convenient for recursive algorithms, thus trying to *translate* the recursive algorithms/functions into iterative ones or ones appropriate for the architecture of GPUs.
 
 ## Current status
 
 **Basically working, but not verified yet**
 
-* only tested for 2 GPUs yet
-* ...
+* only tested for 2 GPUs within one node (shared memory) yet
+	* despite one node (shared memory), using MPI for interprocess communication
+* probably some bugs
+* error-prone memory management
+	* implementation requires *estimated* memory allocation at the beginning
+	* ...
+
+## Samples 
+
+### Single-GPU 
+
+* Single-GPU
+* 524k particles
+* colored in dependence of velocity
+* view: x-y plane
+
+![Single-GPU example](resources/figures/Single-GPU.gif)
+
+### Multi-CPU example 
+
+* Multi-CPU
+* 2 processes, thus 2 cores
+* colored in dependence of process
+* view: x-y plane (left), x-z plane (right)
+
+![Multi-CPU example](resources/figures/Multi-CPU.gif)
+
 
 ## Usage
 

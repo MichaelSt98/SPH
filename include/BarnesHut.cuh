@@ -197,6 +197,10 @@ private:
 
     int deleteDuplicates(int numItems);
 
+    void newLoadDistribution();
+    void updateRange();
+    void updateRangeApproximately(int bins=1000);
+
 public:
 
     // time kernels y/n, comes with some overhead
