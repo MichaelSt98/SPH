@@ -1,12 +1,34 @@
-# GPGPU NBody using CUDA
+# Multi-GPU SPH/NBody using CUDA aware MPI
 
-Adopted from:
 
-* [An Efficient CUDA Implementation of the Tree-Based Barnes Hut n-Body Algorithm](https://iss.oden.utexas.edu/Publications/Papers/burtscher11.pdf)
-* [Patistar/Nbody-Barnes-Hut-CUDA](https://github.com/Patistar/Nbody-Barnes-Hut-CUDA)
-* [bneukom/gpu-nbody](https://github.com/bneukom/gpu-nbody)
+* This repository aims to implement a **Multi-GPU SPH/NBody algorithm using CUDA aware MPI** by combining ideas from:
+	* **Single-GPU version adopted from:**
+		* [An Efficient CUDA Implementation of the Tree-Based Barnes Hut n-Body Algorithm](https://iss.oden.utexas.edu/Publications/Papers/burtscher11.pdf)
+		* [Patistar/Nbody-Barnes-Hut-CUDA](https://github.com/Patistar/Nbody-Barnes-Hut-CUDA)
+		* [bneukom/gpu-nbody](https://github.com/bneukom/gpu-nbody)
+		* [Implementation: MichaelSt98/NNS](https://github.com/MichaelSt98/NNS/tree/main/3D/CUDA/CUDA_NBody) CUDA\_NBody
+	* **Multi-Node (or rather Multi-CPU) version adopted from:**
+		* M. Griebel, S. Knapek, and G. Zumbusch. Numerical Simulation in Molecular Dynamics: Numerics, Algorithms, Parallelization, Applications. 1st. Springer Pub- lishing Company, Incorporated, 2010. isbn: 3642087760
+		* [Implementation: MichaelSt98/NNS (branch: MolecularDynamics)](https://github.com/MichaelSt98/NNS/tree/MolecularDynamics/MolecularDynamics/BarnesHutParallel)
 
-![Example](resources/figures/output.gif)
+
+## Samples 
+
+Single-GPU example output: 
+
+![Single-GPU example](resources/figures/Single-GPU.gif)
+
+Multi-CPU example output (2 processes, thus 2 cores):
+
+![Multi-CPU example](resources/figures/Multi-CPU.gif)
+
+
+## Current status
+
+**Basically working, but not verified yet**
+
+* only tested for 2 GPUs yet
+* ...
 
 ## Usage
 
@@ -16,7 +38,7 @@ Adopted from:
 * **Clean:**
 	* `make clean` to remove object files ...
 	* `make cleaner` to remove object files, binaries ...
-* **Running:** `./bin/runner`
+* **Running:** `mpirun -np <numProcesses> ./bin/runner`
 	* **-r, --render**              render simulation
 	* **-i, --iterations** arg      number of iterations (default: 100)
 	* **-n, --particles** arg       number of particles (default: 524288)
@@ -30,7 +52,27 @@ Adopted from:
 
 ## Implementation
 
-### Theoretical
+### Multi-CPU version
+
+See: 
+
+> M. Griebel, S. Knapek, and G. Zumbusch. **Numerical Simulation in Molecular Dynamics**: Numerics, Algorithms, Parallelization, Applications. 1st. Springer Pub- lishing Company, Incorporated, 2010. isbn: 3642087760 
+
+within the following sections:
+
+* 8 Tree Algorithms for Long-Range Potentials 
+* 8.1 Series Expansion of the Potential 
+* 8.2 Tree Structures for the Decomposition of the Far Field 
+* 8.3 Particle-Cluster Interactions and the Barnes-Hut Method 
+	* 8.3.1 Method 
+	* 8.3.2 Implementation
+	* 8.3.3 Applications from Astrophysics
+* 8.4 **ParallelTreeMethods**
+	* 8.4.1 **An Implementation with Keys** 
+	* 8.4.2 **Dynamical Load Balancing** 
+	* 8.4.3 **Data Distribution with Space-Filling Curves**
+
+### Single-GPU implementation
 
 See [An Efficient CUDA Implementation of the Tree-Based Barnes Hut n-Body Algorithm](https://iss.oden.utexas.edu/Publications/Papers/burtscher11.pdf), which describes a CUDA implementation of the classical Barnes Hut n-body algorithm that runs entirely on the GPU. The code builds an irregular treebased data structure and performs complex traversals on it.
 
