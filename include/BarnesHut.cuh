@@ -18,6 +18,13 @@
 #include <utility>
 //#define KEY_MAX ULONG_MAX
 
+#include <set>
+#include <fstream>
+#include <iomanip>
+#include <highfive/H5File.hpp>
+#include <highfive/H5DataSpace.hpp>
+#include <highfive/H5DataSet.hpp>
+
 #define TESTING 0
 #define CUDA_AWARE_MPI_TESTING 0
 
@@ -39,7 +46,7 @@ private:
     KernelsWrapper KernelHandler;
 
     // process/subdomain handler (MPI rank, number of processes, ...)
-    SubDomainKeyTree *h_subDomainHandler;
+    //SubDomainKeyTree *h_subDomainHandler;
 
     // current iteration step
     int step;
@@ -84,6 +91,8 @@ private:
     float *h_ay;
     float *h_az;
 
+    unsigned long *h_keys;
+
     // children (needed for tree construction)
     int *h_child;
     int *h_start;
@@ -94,7 +103,7 @@ private:
     //---- DEVICE VARIABLES --------------------------------------------------------------------------------------------
 
     // process/subdomain handler (MPI rank, number of processes, ...)
-    SubDomainKeyTree *d_subDomainHandler;
+    //SubDomainKeyTree *d_subDomainHandler;
     unsigned long *d_range;
 
     // lock/mutex
@@ -159,6 +168,8 @@ private:
     float *d_ay;
     float *d_az;
 
+    unsigned long *d_keys;
+
     int *d_index;
     int *d_child;
     int *d_start;
@@ -199,7 +210,7 @@ private:
 
     void newLoadDistribution();
     void updateRange();
-    void updateRangeApproximately(int bins=1000);
+    void updateRangeApproximately(int aimedParticlesPerProcess, int bins=1000);
 
 public:
 
@@ -227,6 +238,8 @@ public:
     float *all_vy;
     float *all_vz;
 
+    SubDomainKeyTree *h_subDomainHandler;
+    SubDomainKeyTree *d_subDomainHandler;
 
     //---- CONSTRUCTOR -------------------------------------------------------------------------------------------------
 
@@ -246,7 +259,10 @@ public:
 
     // gathering/collecting particles from all processes
     int gatherParticles(bool velocities=true, bool deviceToHost=false);
-};
+
+    void particles2file(HighFive::DataSet *pos, HighFive::DataSet *vel, HighFive::DataSet *key);
+
+    };
 
 
 #endif //CUDA_NBODY_BARNESHUT_H

@@ -87,10 +87,11 @@ public:
 
     float centreOfMass(float *x, float *y, float *z, float *mass, int *index, int n, bool timing=false);
 
-    float sort(int *count, int *start, int *sorted, int *child, int *index, int n, bool timing=false);
+    float sort(int *count, int *start, int *sorted, int *child, int *index, int n, int m, bool timing=false);
 
     float computeForces(float *x, float *y, float *z, float *vx, float *vy, float *vz, float *ax, float *ay, float *az,
-                        float *mass, int *sorted, int *child, float *minX, float *maxX, int n, int m, float g,
+                        float *mass, int *sorted, int *child, float *minX, float *maxX, float *minY, float *maxY,
+                        float *minZ, float *maxZ, int n, int m, float g, SubDomainKeyTree *s,
                         bool timing=false);
 
     float update(float *x, float *y, float *z, float *vx, float *vy, float *vz, float *ax, float *ay, float *az, int n,
@@ -143,7 +144,7 @@ public:
                                         unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
                                         int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
                                         SubDomainKeyTree *s, int n, int m, float diam, float theta, int *mutex,
-                                        bool timing=false);
+                                        int *relevantDomainListIndices, bool timing=false);
 
     float compTheta(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
                                     float *minZ, float *maxZ, int *domainListIndex, int *domainListCounter,
@@ -155,6 +156,9 @@ public:
                                   float *minZ, float *maxZ, int *to_delete_leaf, int *domainListIndices,
                                   int *domainListIndex, int *lowestDomainListIndices, int *lowestDomainListIndex,
                                   int n, int m, bool timing=false);
+
+    float centreOfMassReceivedParticles(float *x, float *y, float *z, float *mass, int *startIndex, int *endIndex,
+                                             int n, bool timing=false);
 
 
     float repairTree(float *x, float *y, float *z, float *vx, float *vy, float *vz,
@@ -170,6 +174,8 @@ public:
 
     float removeDuplicates(int *indices, int *removedDuplicatesIndices, int *counter, int length,
                                  bool timing=false);
+
+    float createKeyHistRanges(int bins, unsigned long *keyHistRanges, bool timing=false);
 
     float keyHistCounter(unsigned long *keyHistRanges, int *keyHistCounts, int bins, int n,
                                          float *x, float *y, float *z, float *mass, int *count, int *start,

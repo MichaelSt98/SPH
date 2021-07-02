@@ -147,14 +147,16 @@ __global__ void centreOfMassKernel(float *x, float *y, float *z, float *mass, in
 /**
  * Kernel 4: sorts the bodies
  */
-__global__ void sortKernel(int *count, int *start, int *sorted, int *child, int *index, int n);
+__global__ void sortKernel(int *count, int *start, int *sorted, int *child, int *index, int n, int m);
 
 /**
  * Kernel 5: computes the (gravitational) forces
  */
 __global__ void computeForcesKernel(float* x, float *y, float *z, float *vx, float *vy, float *vz,
                                     float *ax, float *ay, float *az, float *mass, int *sorted, int *child,
-                                    float *minX, float *maxX, int n, int m, float g, int blockSize, int warp, int stackSize);
+                                    float *minX, float *maxX, float *minY, float *maxY,
+                                    float *minZ, float *maxZ, int n, int m, float g, int blockSize, int warp,
+                                    int stackSize, SubDomainKeyTree *s);
 
 
 __device__ float smallestDistance(float* x, float *y, float *z, int node1, int node2);
@@ -166,7 +168,8 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
                                     float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
                                     unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
                                     int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
-                                    SubDomainKeyTree *s, int n, int m, float diam, float theta, int *mutex);
+                                    SubDomainKeyTree *s, int n, int m, float diam, float theta_, int *mutex,
+                                    int *relevantDomainListIndices);
 
 __global__ void compThetaKernel(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
                                 float *minZ, float *maxZ, int *domainListIndex, int *domainListCounter,
@@ -185,6 +188,8 @@ __global__ void insertReceivedParticlesKernel(float *x, float *y, float *z, floa
                                         int *domainListIndex, int *lowestDomainListIndices, int *lowestDomainListIndex,
                                         int n, int m);
 
+__global__ void centreOfMassReceivedParticlesKernel(float *x, float *y, float *z, float *mass, int *startIndex, int *endIndex, int n);
+
 __global__ void repairTreeKernel(float *x, float *y, float *z, float *vx, float *vy, float *vz,
                            float *ax, float *ay, float *az, float *mass, int *count, int *start,
                            int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
@@ -202,6 +207,8 @@ __global__ void markDuplicatesKernel(int *indices, float *x, float *y, float *z,
 __global__ void removeDuplicatesKernel(int *indices, int *removedDuplicatesIndices, int *counter, int length);
 
 __global__ void getParticleCount(int *child, int *count, int *particleCount);
+
+__global__ void createKeyHistRangesKernel(int bins, unsigned long *keyHistRanges);
 
 __global__ void keyHistCounterKernel(unsigned long *keyHistRanges, int *keyHistCounts, int bins, int n,
                                      float *x, float *y, float *z, float *mass, int *count, int *start,

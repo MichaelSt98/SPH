@@ -140,6 +140,47 @@ int main(int argc, char** argv)
 
             particles->update(i);
 
+            // writing to h5 file
+            if (true) {
+
+                std::stringstream stepss;
+                stepss << std::setw(6) << std::setfill('0') << i;
+
+                HighFive::File h5file("output/ts" + stepss.str() + ".h5",
+                                      HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate,
+                                      HighFive::MPIOFileDriver(MPI_COMM_WORLD, MPI_INFO_NULL));
+
+                std::vector <size_t> dataSpaceDims(2);
+                dataSpaceDims[0] = std::size_t(parameters.numberOfParticles);
+                dataSpaceDims[1] = 3;
+
+                HighFive::DataSet ranges = h5file.createDataSet<unsigned long>("/hilbertRanges",
+                                                                               HighFive::DataSpace(numProcesses+1));
+
+                unsigned long *rangeValues;
+                rangeValues = new unsigned long[numProcesses+1];
+                for (int i=0; i<numProcesses+1; i++) {
+                    //cudaMemcpy(rangeValues, &particles->d_subDomainHandler->range, (numProcesses + 1) * sizeof(unsigned long), cudaMemcpyDeviceToHost);
+                    //cudaMemcpy(&rangeValues[i], &particles->d_subDomainHandler->range[i], sizeof(unsigned long), cudaMemcpyDeviceToHost);
+                }
+
+                for (int i=0; i<numProcesses+1; i++) {
+                    rangeValues[i] = particles->h_subDomainHandler->range[i];
+                    Logger(INFO) << "rangeValues[" << i << "] = " << rangeValues[i];
+                }
+
+                ranges.write(rangeValues);
+
+                HighFive::DataSet pos = h5file.createDataSet<double>("/x", HighFive::DataSpace(dataSpaceDims));
+                HighFive::DataSet vel = h5file.createDataSet<double>("/v", HighFive::DataSpace(dataSpaceDims));
+                HighFive::DataSet key = h5file.createDataSet<unsigned long>("/hilbertKey",
+                                                                            HighFive::DataSpace(parameters.numberOfParticles));
+
+                particles->particles2file(&pos, &vel, &key);
+
+                delete [] rangeValues;
+            }
+
             /**
              * Output
              * * optimize (not yet optimized for code structure)
