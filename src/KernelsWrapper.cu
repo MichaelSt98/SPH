@@ -124,7 +124,7 @@ float KernelsWrapper::buildDomainTree(int *domainListIndex, unsigned long *domai
         cudaEventRecord(start_t, 0);
 
         buildDomainTreeKernel<<< 1, 1 >>>(domainListIndex, domainListKeys, domainListLevels, domainListIndices, x, y, z,
-                                      mass, minX, maxX, minY, maxY, minZ, maxZ,count, start, child, index, n, m);
+                                      mass, minX, maxX, minY, maxY, minZ, maxZ, count, start, child, index, n, m);
 
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
@@ -134,7 +134,7 @@ float KernelsWrapper::buildDomainTree(int *domainListIndex, unsigned long *domai
     }
     else {
         buildDomainTreeKernel<<< 1, 1 >>>(domainListIndex, domainListKeys, domainListLevels, domainListIndices, x, y, z,
-                                          mass, minX, maxX, minY, maxY, minZ, maxZ,count, start, child, index, n, m);
+                                          mass, minX, maxX, minY, maxY, minZ, maxZ, count, start, child, index, n, m);
     }
     return elapsedTime;
 }
@@ -794,10 +794,11 @@ float KernelsWrapper::collectSendIndices(int *sendIndices, float *entry, float *
     return elapsedTime;
 }
 
-float KernelsWrapper::symbolicForce(int relevantIndex, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
-                                    float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
-                                    unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
-                                    int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
+float KernelsWrapper::symbolicForce(int relevantIndex, float *x, float *y, float *z, float *mass, float *minX,
+                                    float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int *child,
+                                    int *domainListIndex, unsigned long *domainListKeys, int *domainListIndices,
+                                    int *domainListLevels, int *domainListCounter, int *sendIndices, int *index,
+                                    int *particleCounter,
                                     SubDomainKeyTree *s, int n, int m, float diam, float theta, int *mutex,
                                     int *relevantDomainListIndices, bool timing) {
 
@@ -808,7 +809,7 @@ float KernelsWrapper::symbolicForce(int relevantIndex, float *x, float *y, float
         cudaEventCreate(&stop_t);
         cudaEventRecord(start_t, 0);
 
-        symbolicForceKernel<<< gridSize, blockSize >>>(relevantIndex, x, y, z, minX, maxX, minY, maxY, minZ, maxZ, child,
+        symbolicForceKernel<<< gridSize, blockSize >>>(relevantIndex, x, y, z, mass, minX, maxX, minY, maxY, minZ, maxZ, child,
                                                      domainListIndex, domainListKeys, domainListIndices, domainListLevels,
                                                      domainListCounter, sendIndices, index, particleCounter, s, n, m,
                                                      diam, theta, mutex, relevantDomainListIndices);
@@ -820,7 +821,7 @@ float KernelsWrapper::symbolicForce(int relevantIndex, float *x, float *y, float
         cudaEventDestroy(stop_t);
     }
     else {
-        symbolicForceKernel<<< gridSize, blockSize >>>(relevantIndex, x, y, z, minX, maxX, minY, maxY, minZ, maxZ, child,
+        symbolicForceKernel<<< gridSize, blockSize >>>(relevantIndex, x, y, z, mass, minX, maxX, minY, maxY, minZ, maxZ, child,
                                                      domainListIndex, domainListKeys, domainListIndices, domainListLevels,
                                                      domainListCounter, sendIndices, index, particleCounter, s, n, m,
                                                      diam, theta, mutex, relevantDomainListIndices);

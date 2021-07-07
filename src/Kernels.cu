@@ -542,7 +542,9 @@ __global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domai
                 } else {
                     // child is a leaf, thus add node in between
                     int cell = atomicAdd(index, 1);
-                    child[8 * temp + path[j]] = cell;
+                    child[8 * /*childIndex*/temp + path[j]] = cell;
+
+                    //printf("\tchild[8*%i + %i] = %i\n", temp, path[j], cell);
 
                     min_x = *minX;
                     max_x = *maxX;
@@ -551,11 +553,12 @@ __global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domai
                     min_z = *minZ;
                     max_z = *maxZ;
 
-                    // TODO: fix
                     for (int k=0; k<=j; k++) {
+
                         currentChild = path[k];
+
                         //printf("adding path[%i] = %i (j = %i)\n", k, path[k], j);
-                        if (currentChild % 1 == 0) {
+                        if (currentChild % 2 != 0) {
                             max_x = 0.5 * (min_x + max_x);
                             currentChild -= 1;
                         }
@@ -569,31 +572,54 @@ __global__ void buildDomainTreeKernel(int *domainListIndex, unsigned long *domai
                         else {
                             min_y = 0.5 * (min_y + max_y);
                         }
-                        if (currentChild % 4 == 0) {
+                        if (currentChild == 4) {
                             max_z = 0.5 * (min_z + max_z);
                             currentChild -= 4;
                         }
                         else {
                             min_z = 0.5 * (min_z + max_z);
                         }
+                        //printf("\t\t currentChild[%i] = %i   %i\n", k, currentChild, path[k]);
                     }
                     // insert old/original particle
-                    childPath = 0;
-                    if (x[childIndex] < 0.5 * (min_x + max_x)) { childPath += 1; }
-                    if (y[childIndex] < 0.5 * (min_y + max_y)) { childPath += 2; }
-                    if (z[childIndex] < 0.5 * (min_z + max_z)) { childPath += 4; }
+                    childPath = 0; //(int) (domainListKeys[i] >> (21 * 3 - 3 * ((j+1) + 1)) & (int)7); //0; //currentChild; //0;
+                    if (x[childIndex] < 0.5 * (min_x + max_x)) {
+                        childPath += 1;
+                        //max_x = 0.5 * (min_x + max_x);
+                    }
+                    //else {
+                    //    min_x = 0.5 * (min_x + max_x);
+                    //}
+                    if (y[childIndex] < 0.5 * (min_y + max_y)) {
+                        childPath += 2;
+                        //max_y = 0.5 * (min_y + max_y);
+                    }
+                    //else {
+                    //    min_y = 0.5 * (min_y + max_y);
+                    //}
+                    if (z[childIndex] < 0.5 * (min_z + max_z)) {
+                        childPath += 4;
+                        //max_z = 0.5 * (min_z + max_z);
+                    }
+                    //else {
+                    //    min_z = 0.5 * (min_z + max_z);
+                    //}
 
                     x[cell] += mass[childIndex] * x[childIndex];
                     y[cell] += mass[childIndex] * y[childIndex];
                     z[cell] += mass[childIndex] * z[childIndex];
                     mass[cell] += mass[childIndex];
 
-                    printf("adding node in between for index %i (childPath = %i, j = %i)!\n", childIndex, childPath, j);
+                    //printf("path = %i\n", (int) (domainListKeys[i] >> (21 * 3 - 3 * ((j+1) + 1)) & (int)7));
+                    //printf("j = %i, domainListLevels[%i] = %i\n", j, i, domainListLevels[i]);
+                    printf("adding node in between for index %i  cell = %i (childPath = %i,  j = %i)! x = (%f, %f, %f)\n",
+                           childIndex, cell, childPath, j, x[childIndex], y[childIndex], z[childIndex]);
                     //for (int l=0; l<=j; l++) {
                     //    printf("\tpath[%i] = %i\n", l, path[l]);
                     //}
 
                     child[8 * cell + childPath] = childIndex;
+                    //printf("child[8 * %i + %i] = %i\n", cell, childPath, childIndex);
 
                     childIndex = cell;
                     domainListIndices[domainListCounter] = childIndex; //temp;
@@ -740,10 +766,10 @@ __global__ void domainListInfoKernel(float *x, float *y, float *z, float *mass, 
     int offset = 0;
 
     while ((bodyIndex + offset) < *domainListIndex) {
-        printf("[rank %i] domainListIndices[%i] = %i  x = (%f, %f, %f) m = %f\n", s->rank, bodyIndex + offset,
+        /*printf("[rank %i] domainListIndices[%i] = %i  x = (%f, %f, %f) m = %f\n", s->rank, bodyIndex + offset,
                domainListIndices[bodyIndex + offset], x[domainListIndices[bodyIndex + offset]],
                y[domainListIndices[bodyIndex + offset]], z[domainListIndices[bodyIndex + offset]],
-               mass[domainListIndices[bodyIndex + offset]]);
+               mass[domainListIndices[bodyIndex + offset]]);*/
 
         /*if (mass[domainListIndices[bodyIndex + offset]] == 0.f) {
             for (int i=0; i<8; i++) {
@@ -1535,7 +1561,7 @@ __global__ void collectSendIndicesKernel(int *sendIndices, float *entry, float *
 }
 
 //ATTENTION: causes duplicate entries, which need to be removed afterwards
-__global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
+__global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float *z, float *mass, float *minX, float *maxX, float *minY,
                                     float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
                               unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
                               int *domainListCounter, int *sendIndices, int *index, int *particleCounter,
@@ -1555,9 +1581,9 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
 
     while ((bodyIndex + offset) < *index) {
 
-        if ((bodyIndex + offset) == 0) {
-            printf("relevantIndex: %i\n", relevantDomainListIndices[relevantIndex]);
-        }
+        //if ((bodyIndex + offset) == 0) {
+        //    printf("relevantIndex: %i\n", relevantDomainListIndices[relevantIndex]);
+        //}
 
         insert = true;
         //redo = false;
@@ -1565,8 +1591,13 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
         for (int i=0; i<*domainListIndex; i++) {
             if ((bodyIndex + offset) == domainListIndices[i]) {
                 insert = false;
+                break;
             }
         }
+
+        //if (mass[relevantDomainListIndices[relevantIndex]] == 0) {
+        //    insert = false;
+        //}
 
         // TODO: CHANGED: relevantIndex -> relevantDomainListIndices[relevantIndex]
         if (insert && (bodyIndex + offset) != relevantDomainListIndices[relevantIndex] && ((bodyIndex + offset) < particleCounter[s->rank] || (bodyIndex + offset) > n)) {
@@ -1581,7 +1612,7 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
                 //TODO: insert cell itself or children?
 
                 /// inserting cell itself
-                //check whether node is a domain list node
+                /*//check whether node is a domain list node
                 for (int i=0; i<*domainListIndex; i++) {
                     if ((bodyIndex + offset) == domainListIndices[i]) {
                         insert = false;
@@ -1596,7 +1627,7 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
                 }
                 else {
 
-                }
+                }*/
 
                 /// inserting children
                 for (int i=0; i<8; i++) {
@@ -2044,24 +2075,31 @@ __device__ int getTreeLevel(int index, int *child, float *x, float *y, float *z,
         path[i] = (int) (key >> (21*3 - 3 * (i + 1)) & (int)7);
     }
 
-    childIndex = child[path[0]];
+    childIndex = 0;//child[path[0]];
 
     //TODO: where to put level++ for getTreeLevel()?
-    for (int i=1; i<21; i++) {
+    for (int i=0; i<21; i++) {
         //level++;
-        childIndex = child[8*childIndex + path[i]];
+        //childIndex = child[8*childIndex + path[i]];
         if (childIndex == index) {
             return level;
         }
+        childIndex = child[8*childIndex + path[i]];
         level++;
         //childIndex = child[8*childIndex + path[i]];
         //level++;
     }
 
+    childIndex = 0; //child[path[0]];
     printf("ATTENTION: level = -1 (index = %i x = (%f, %f, %f))\n", index, x[index], y[index], z[index]);
-    for (int i=0; i<21; i++) {
-        printf("\tlevel = -1 path[%i] = %i\n", i, path[i]);
-    }
+    //printf("\tlevel = -1  childIndex = %i  path[%i] = %i\n", childIndex, 0, path[0]);
+    /*for (int i=0; i<21; i++) {
+        childIndex = child[8*childIndex + path[i]];
+        printf("\tlevel = -1  childIndex = %i  path[%i] = %i\n", childIndex, i, path[i]);
+        //for (int ii=0; ii<21; ii++) {
+        //    printf("\t\t child[8*childIndex + %i] = %i\n", ii, child[8*childIndex + ii]);
+        //}
+    }*/
     return -1;
 
 }
@@ -2103,7 +2141,7 @@ __global__ void markDuplicatesKernel(int *indices, float *x, float *y, float *z,
         if (indices[bodyIndex + offset] != -1) {
             for (int i = 0; i < length; i++) {
                 if (i != (bodyIndex + offset)) {
-                    if (x[indices[bodyIndex + offset]] == x[indices[i]] || indices[bodyIndex + offset] == indices[i]) {
+                    if (indices[i] != -1 && (x[indices[bodyIndex + offset]] == x[indices[i]] || indices[bodyIndex + offset] == indices[i])) {
                         maxIndex = max(bodyIndex + offset, i);
                         // mark larger index with -1 (thus a duplicate)
                         indices[maxIndex] = -1;
@@ -2227,6 +2265,7 @@ __global__ void calculateNewRangeKernel(unsigned long *keyHistRanges, int *keyHi
         for (int i=1; i<s->numProcesses; i++) {
             if ((sum + keyHistCounts[bodyIndex + offset]) >= (i*n) && sum < (i*n)) {
                 printf("[rank %i] new range: %lu\n", s->rank, keyHistRanges[bodyIndex + offset]);
+                s->range[i] = keyHistRanges[bodyIndex + offset];
             }
         }
 

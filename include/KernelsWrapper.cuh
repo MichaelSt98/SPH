@@ -139,7 +139,7 @@ public:
     float collectSendIndices(int *sendIndices, float *entry, float *tempArray, int *domainListCounter,
                                              int sendCount, bool timing=false);
 
-    float symbolicForce(int relevantIndex, float *x, float *y, float *z, float *minX, float *maxX, float *minY,
+    float symbolicForce(int relevantIndex, float *x, float *y, float *z, float *mass, float *minX, float *maxX, float *minY,
                                         float *maxY, float *minZ, float *maxZ, int *child, int *domainListIndex,
                                         unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
                                         int *domainListCounter, int *sendIndices, int *index, int *particleCounter,

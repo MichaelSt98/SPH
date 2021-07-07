@@ -22,7 +22,12 @@ void CheckCudaCall(cudaError_t command, const char * commandName, const char * f
 void BarnesHut::initRange() {
     // equidistant initialization of ranges
     for (int i=0; i<h_subDomainHandler->numProcesses; i++) {
-        h_subDomainHandler->range[i] = i * (1UL << 63)/(h_subDomainHandler->numProcesses);
+        if (i != 0) {
+            h_subDomainHandler->range[i] = i * (1UL << 63) / (h_subDomainHandler->numProcesses) + 1024UL;
+        }
+        else {
+            h_subDomainHandler->range[i] = i * (1UL << 63) / (h_subDomainHandler->numProcesses);
+        }
         //h_subDomainHandler->range[i] = i * (1UL << 63)/(h_subDomainHandler->numProcesses + 1);
     }
     h_subDomainHandler->range[h_subDomainHandler->numProcesses] = KEY_MAX;
@@ -239,8 +244,8 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
 
     gpuErrorcheck(cudaMalloc((void**)&d_domainListCounter, sizeof(int)));
     gpuErrorcheck(cudaMalloc((void**)&d_relevantDomainListIndices, DOMAIN_LIST_SIZE*sizeof(int)));
-    gpuErrorcheck(cudaMalloc((void**)&d_sendIndices, numParticles*sizeof(int))); //TODO: numParticles or numNodes?
-    gpuErrorcheck(cudaMalloc((void**)&d_sendIndicesTemp, numParticles*sizeof(int))); //TODO: numParticles or numNodes?
+    gpuErrorcheck(cudaMalloc((void**)&d_sendIndices, numNodes*sizeof(int))); // numParticles or numNodes?
+    gpuErrorcheck(cudaMalloc((void**)&d_sendIndicesTemp, numNodes*sizeof(int))); // numParticles or numNodes?
 
     gpuErrorcheck(cudaMalloc((void**)&d_lowestDomainListCounter, sizeof(int)));
     gpuErrorcheck(cudaMalloc((void**)&d_lowestDomainListIndices, DOMAIN_LIST_SIZE*sizeof(int)));
@@ -430,7 +435,9 @@ void BarnesHut::update(int step)
     //gpuErrorcheck(cudaGetDevice(&device));
     //Logger(INFO) << "update() on device " << device << "...";
 
-    newLoadDistribution();
+    if (step%10 == 0 && step != 0) {
+        //newLoadDistribution();
+    }
 
     /*RESETTING ARRAYS*************************************************************************/
     float elapsedTime;
@@ -857,7 +864,7 @@ void BarnesHut::diskModel(float *mass, float *x, float* y, float* z, float *x_ve
         // set mass and position of particle
         if (h_subDomainHandler->rank == 0) {
             if (i == 0) {
-                mass[i] = 2 * solarMass / numParticles; //solarMass; //100000;
+                mass[i] = 2 * solarMass / numParticles; //solarMass; //100000; 2 * solarMass / numParticles;
                 x[i] = 0;
                 y[i] = 0;
                 z[i] = 0;
@@ -891,10 +898,10 @@ void BarnesHut::diskModel(float *mass, float *x, float* y, float* z, float *x_ve
 
 
         // set velocity of particle
-        float rotation = -1;  // 1: clockwise   -1: counter-clockwise
+        float rotation = 1;  // 1: clockwise   -1: counter-clockwise
         float v = sqrt(solarMass / (r));
 
-        if (true/*i == 0*/) {
+        if (i == 0) {
             x_vel[0] = 0.0;
             y_vel[0] = 0.0;
             z_vel[0] = 0.0;
@@ -1352,15 +1359,36 @@ float BarnesHut::parallelForce() {
 
     gpuErrorcheck(cudaMemset(d_domainListCounter, 0, sizeof(int)));
     int currentDomainListCounter;
+    float massOfDomainListNode;
     for (int relevantIndex=0; relevantIndex<relevantIndicesCounter; relevantIndex++) {
         gpuErrorcheck(cudaMemcpy(&currentDomainListCounter, d_domainListCounter, sizeof(int), cudaMemcpyDeviceToHost));
-        gpuErrorcheck(cudaMemset(d_mutex, 0, sizeof(int)));
+        //gpuErrorcheck(cudaMemset(d_mutex, 0, sizeof(int)));
         //Logger(INFO) << "current value of domain list counter: " << currentDomainListCounter;
-        //TODO: check relevantIndex (used to be relevantIndex)
-        KernelHandler.symbolicForce(relevantIndex, d_x, d_y, d_z, d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z,
+
+        KernelHandler.symbolicForce(relevantIndex, d_x, d_y, d_z, d_mass, d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z,
                                     d_child, d_domainListIndex, d_domainListKeys, d_domainListIndices, d_domainListLevels,
                                     d_domainListCounter, d_sendIndicesTemp, d_index, d_procCounter, d_subDomainHandler,
                                     numParticles, numNodes, diam, theta, d_mutex, d_relevantDomainListIndices, false);
+
+        // removing duplicates
+        // TODO: remove duplicates by overwriting same array with index of to send and afterwards remove empty entries
+        int sendCountTemp;
+        gpuErrorcheck(cudaMemcpy(&sendCountTemp, d_domainListCounter, sizeof(int), cudaMemcpyDeviceToHost));
+
+        gpuErrorcheck(cudaMemset(d_domainListCounter, 0, sizeof(int)));
+        KernelHandler.markDuplicates(d_sendIndicesTemp, d_x, d_y, d_z, d_mass, d_subDomainHandler, d_domainListCounter,
+                                     sendCountTemp, false);
+        int duplicatesCounter;
+        gpuErrorcheck(cudaMemcpy(&duplicatesCounter, d_domainListCounter, sizeof(int), cudaMemcpyDeviceToHost));
+        //Logger(INFO) << "duplicatesCounter: " << duplicatesCounter;
+        //Logger(INFO) << "now resetting d_domainListCounter..";
+        gpuErrorcheck(cudaMemset(d_domainListCounter, 0, sizeof(int)));
+        //Logger(INFO) << "now removing duplicates..";
+        KernelHandler.removeDuplicates(d_sendIndicesTemp, d_sendIndices, d_domainListCounter, sendCountTemp, false);
+        int sendCount;
+        gpuErrorcheck(cudaMemcpy(&sendCount, d_domainListCounter, sizeof(int), cudaMemcpyDeviceToHost));
+        //Logger(INFO) << "sendCount: " << sendCount;
+        // end: removing duplicates
     }
 
     gpuErrorcheck(cudaMemcpy(h_procCounter, d_procCounter, h_subDomainHandler->numProcesses*sizeof(int), cudaMemcpyDeviceToHost));
