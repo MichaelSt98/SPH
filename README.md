@@ -16,11 +16,11 @@ This repository aims to implement a **Multi-GPU SPH/NBody algorithm using CUDA a
 
 ## Current status
 
-**Basically working, but not verified yet**
+**Proof of concept!**
 
 * only tested for 2 GPUs within one node (shared memory) yet
 	* despite one node (shared memory), using MPI for interprocess communication
-* probably some bugs
+* probably some (minor) bugs
 * error-prone memory management
 	* implementation requires *estimated* memory allocation at the beginning
 	* ...
@@ -45,6 +45,16 @@ This repository aims to implement a **Multi-GPU SPH/NBody algorithm using CUDA a
 
 ![Multi-CPU example](resources/figures/Multi-CPU.gif)
 
+### Multi-GPU example
+
+**Multi-GPU Lebesgue**
+
+![Multi-GPU example Lebesgue](resources/figures/MultiGPU_Lebesgue.gif)
+
+**Multi-GPU Hilbert**
+
+![Multi-GPU example Hilbert](resources/figures/MultiGPU_Hilbert.gif)
+
 
 ## Usage
 
@@ -56,11 +66,14 @@ This repository aims to implement a **Multi-GPU SPH/NBody algorithm using CUDA a
 	* `make cleaner` to remove object files, binaries ...
 * **Running:** `mpirun -np <numProcesses> ./bin/runner`
 	* **-r, --render**              render simulation
-	* **-i, --iterations** arg      number of iterations (default: 100)
-	* **-n, --particles** arg       number of particles (default: 524288)
-	* **-b, --blocksize** arg       block size (default: 256)
-	* **-g, --gridsize** arg        grid size (default: 1024)
-	* **-R, --renderinterval** arg  render interval (default: 10)
+	* **-i, --iterations**          number of iterations (default: 100)
+	* **-n, --particles**           number of particles (default: 524288)
+	* **-b, --blocksize**           block size (default: 256)
+	* **-g, --gridsize**            grid size (default: 1024)
+	* **-R, --renderinterval**      render interval (default: 10)
+	* **-l, --loadbalancing**       load balancing
+	* **-L, --loadbalancinginterval** load balancing interval
+	* **-c, --curvetype**           curve type
 	* **-v, --verbosity**           Verbosity level
 	* **-h, --help**                Show this help
 * **Visualization:** `./createMP4`
