@@ -47,12 +47,12 @@ public:
     float particlesPerProcess(float *x, float *y, float *z, float *mass, int *count, int *start, int *child,
                               int *index, float *minX, float *maxX, float *minY, float *maxY, float *minZ,
                               float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
-                              int *procCounterTemp, bool timing=false);
+                              int *procCounterTemp, int curveType=0, bool timing=false);
 
     float markParticlesProcess(float *x, float *y, float *z, float *mass, int *count, int *start, int *child, int *index,
                                float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ, int n,
                                int m, SubDomainKeyTree *s, int *procCounter, int *procCounterTemp, int *sortArray,
-                               bool timing=false);
+                               int curveType=0, bool timing=false);
 
     float copyArray(float *targetArray, float *sourceArray, int n, bool timing=false);
 
@@ -83,7 +83,7 @@ public:
                             int maxLevel, bool timing=false);
 
     float createDomainList(SubDomainKeyTree *s, int maxLevel, unsigned long *domainListKeys, int *levels, int *index,
-                           bool timing=false);
+                           int curveType=0, bool timing=false);
 
     float centreOfMass(float *x, float *y, float *z, float *mass, int *index, int n, bool timing=false);
 
@@ -149,7 +149,8 @@ public:
     float compTheta(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
                                     float *minZ, float *maxZ, int *domainListIndex, int *domainListCounter,
                                     unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
-                                    int *relevantDomainListIndices, SubDomainKeyTree *s, bool timing=false);
+                                    int *relevantDomainListIndices, SubDomainKeyTree *s, int curveType=0,
+                                    bool timing=false);
 
     float insertReceivedParticles(float *x, float *y, float *z, float *mass, int *count, int *start,
                                   int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,

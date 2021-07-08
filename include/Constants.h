@@ -21,6 +21,9 @@ typedef struct SimulationParameters
     int warp;
     int stackSize;
     int renderInterval;
+    bool loadBalancing;
+    int loadBalancingInterval;
+    int curveType;
 
 } SimulationParameters;
 

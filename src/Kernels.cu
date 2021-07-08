@@ -185,7 +185,7 @@ __global__ void computeBoundingBoxKernel(int *mutex, float *x, float *y, float *
 __global__ void particlesPerProcessKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                     float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s,
-                                    int *procCounter, int *procCounterTemp) {
+                                    int *procCounter, int *procCounterTemp, int curveType) {
 
     //go over domain list (only the ones inherited by own process) and count particles (using count array)
     //BUT: for now use this approach!
@@ -203,7 +203,7 @@ __global__ void particlesPerProcessKernel(float *x, float *y, float *z, float *m
         key = getParticleKeyPerParticle(x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset],
                                         minX, maxX, minY, maxY, minZ, maxZ, 21);
         // get corresponding process
-        proc = key2proc(key, s);
+        proc = key2proc(key, s, curveType);
 
         // increment corresponding counter
         atomicAdd(&procCounter[proc], 1);
@@ -216,7 +216,7 @@ __global__ void particlesPerProcessKernel(float *x, float *y, float *z, float *m
 __global__ void markParticlesProcessKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                            int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                            float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s,
-                                           int *procCounter, int *procCounterTemp, int *sortArray) {
+                                           int *procCounter, int *procCounterTemp, int *sortArray, int curveType) {
 
     int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
     int stride = blockDim.x * gridDim.x;
@@ -233,7 +233,7 @@ __global__ void markParticlesProcessKernel(float *x, float *y, float *z, float *
         key = getParticleKeyPerParticle(x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset],
                                         minX, maxX, minY, maxY, minZ, maxZ, 21);
         // get corresponding process
-        proc = key2proc(key, s);
+        proc = key2proc(key, s, curveType);
 
         /*// increment corresponding counter
         counter = atomicAdd(&procCounterTemp[proc], 1)
@@ -796,7 +796,7 @@ __device__ void key2Char(unsigned long key, int maxLevel, char *keyAsChar) {
     keyAsChar[2*maxLevel+3] = '\0';
 }
 
-// table needed to convert from Lebesgue to Hilbert keys
+/*// table needed to convert from Lebesgue to Hilbert keys
 __device__ const unsigned char DirTable[12][8] =
         { { 8,10, 3, 3, 4, 5, 4, 5}, { 2, 2,11, 9, 4, 5, 4, 5},
           { 7, 6, 7, 6, 8,10, 1, 1}, { 7, 6, 7, 6, 0, 0,11, 9},
@@ -809,7 +809,7 @@ __device__ const unsigned char DirTable[12][8] =
 __device__ const unsigned char HilbertTable[12][8] = { {0,7,3,4,1,6,2,5}, {4,3,7,0,5,2,6,1}, {6,1,5,2,7,0,4,3},
                                                        {2,5,1,6,3,4,0,7}, {0,1,7,6,3,2,4,5}, {6,7,1,0,5,4,2,3},
                                                        {2,3,5,4,1,0,6,7}, {4,5,3,2,7,6,0,1}, {0,3,1,2,7,4,6,5},
-                                                       {2,1,3,0,5,6,4,7}, {4,7,5,6,3,0,2,1}, {6,5,7,4,1,2,0,3} };
+                                                       {2,1,3,0,5,6,4,7}, {4,7,5,6,3,0,2,1}, {6,5,7,4,1,2,0,3} };*/
 
 // convert Lebesgue key to Hilbert key
 __device__ unsigned long Lebesgue2Hilbert(unsigned long lebesgue, int maxLevel) {
@@ -868,8 +868,9 @@ __device__ unsigned long getParticleKeyPerParticle(float x, float y, float z,
         particleKey = particleKey | ((unsigned long)sonBox << (unsigned long)(3 * (maxLevel-level-1)));
         level ++;
     }
+    //TODO: Hilbert change
     return particleKey;
-
+    //return Lebesgue2Hilbert(particleKey, 21);
 }
 
 // only for testing...
@@ -921,10 +922,21 @@ __global__ void getParticleKeyKernel(float *x, float *y, float *z, float *minX, 
 }
 
 // get the corresponding process of a key (using the range within the SubDomainKeyTree)
-__device__ int key2proc(unsigned long k, SubDomainKeyTree *s) {
-    for (int proc=0; proc<s->numProcesses; proc++) {
-        if (k >= s->range[proc] && k < s->range[proc+1]) {
-            return proc;
+__device__ int key2proc(unsigned long k, SubDomainKeyTree *s, int curveType) {
+
+    if (curveType == 0) {
+        for (int proc=0; proc<s->numProcesses; proc++) {
+            if (k >= s->range[proc] && k < s->range[proc+1]) {
+                return proc;
+            }
+        }
+    }
+    else {
+        unsigned long hilbert = Lebesgue2Hilbert(k, 21);
+        for (int proc = 0; proc < s->numProcesses; proc++) {
+            if (hilbert >= s->range[proc] && hilbert < s->range[proc + 1]) {
+                return proc;
+            }
         }
     }
     //printf("ERROR: key2proc(k=%lu): -1!", k);
@@ -977,7 +989,7 @@ __global__ void traverseIterativeKernel(float *x, float *y, float *z, float *mas
 // get the domain list keys (and levels) resulting from ranges (within the SubDomainKeyTree)
 // domain list nodes = common coarse tree for all processes
 __global__ void createDomainListKernel(SubDomainKeyTree *s, int maxLevel, unsigned long *domainListKeys, int *levels,
-                                       int *index) {
+                                       int *index, int curveType) {
 
     char keyAsChar[21 * 2 + 3];
 
@@ -995,13 +1007,13 @@ __global__ void createDomainListKernel(SubDomainKeyTree *s, int maxLevel, unsign
 
     // in principle: traversing a (non-existent) octree by walking the 1D spacefilling curve (keys of the tree nodes)
     while (key2test < keyMax) {
-        if (isDomainListNode(key2test & (~0UL << (3 * (maxLevel - level + 1))), maxLevel, level-1, s)) {
+        if (isDomainListNode(key2test & (~0UL << (3 * (maxLevel - level + 1))), maxLevel, level-1, s, curveType)) {
             // add domain list key
             domainListKeys[*index] = key2test;
             // add domain list level
             levels[*index] = level;
             *index += 1;
-            if (isDomainListNode(key2test, maxLevel, level, s)) {
+            if (isDomainListNode(key2test, maxLevel, level, s, curveType)) {
                 level++;
             }
             else {
@@ -1019,9 +1031,9 @@ __global__ void createDomainListKernel(SubDomainKeyTree *s, int maxLevel, unsign
 }
 
 // check whether node is a domain list node
-__device__ bool isDomainListNode(unsigned long key, int maxLevel, int level, SubDomainKeyTree *s) {
-    int p1 = key2proc(key, s);
-    int p2 = key2proc(key | ~(~0UL << 3*(maxLevel-level)), s);
+__device__ bool isDomainListNode(unsigned long key, int maxLevel, int level, SubDomainKeyTree *s, int curveType) {
+    int p1 = key2proc(key, s, curveType);
+    int p2 = key2proc(key | ~(~0UL << 3*(maxLevel-level)), s, curveType);
     if (p1 != p2) {
         return true;
     }
@@ -1659,7 +1671,7 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
 __global__ void compThetaKernel(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
                           float *minZ, float *maxZ, int *domainListIndex, int *domainListCounter,
                           unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
-                          int *relevantDomainListIndices, SubDomainKeyTree *s) {
+                          int *relevantDomainListIndices, SubDomainKeyTree *s, int curveType) {
 
     int index = threadIdx.x + blockIdx.x * blockDim.x;
     int stride = blockDim.x * gridDim.x;
@@ -1678,7 +1690,7 @@ __global__ void compThetaKernel(float *x, float *y, float *z, float *minX, float
                                         minZ, maxZ, 21);
 
         //if domain list node belongs to other process: add to relevant domain list indices
-        if (key2proc(key, s) != s->rank) {
+        if (key2proc(key, s, curveType) != s->rank) {
             domainIndex = atomicAdd(domainListCounter, 1);
             relevantDomainListIndices[domainIndex] = bodyIndex;
             //printf("relevant domain list index: %i\n", bodyIndex);
@@ -2214,7 +2226,7 @@ __global__ void createKeyHistRangesKernel(int bins, unsigned long *keyHistRanges
 __global__ void keyHistCounterKernel(unsigned long *keyHistRanges, int *keyHistCounts, int bins, int n,
                         float *x, float *y, float *z, float *mass, int *count, int *start,
                         int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                        float *minZ, float *maxZ, SubDomainKeyTree *s) {
+                        float *minZ, float *maxZ, SubDomainKeyTree *s, int curveType) {
 
     int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
     int stride = blockDim.x * gridDim.x;
@@ -2227,14 +2239,25 @@ __global__ void keyHistCounterKernel(unsigned long *keyHistRanges, int *keyHistC
         key = getParticleKeyPerParticle(x[bodyIndex + offset], y[bodyIndex + offset], z[bodyIndex + offset],
                                         minX, maxX, minY, maxY, minZ, maxZ, 21);
 
-        for (int i=0; i<(bins); i++) {
-            if (key >= keyHistRanges[i] && key < keyHistRanges[i+1]) {
-                //keyHistCounts[i] += 1;
-                atomicAdd(&keyHistCounts[i], 1);
-                //if (s->rank) {
-                //    printf("adding...\n");
-                //}
-                break;
+        if (curveType == 0) {
+            for (int i=0; i<(bins); i++) {
+                if (key >= keyHistRanges[i] && key < keyHistRanges[i+1]) {
+                    //keyHistCounts[i] += 1;
+                    atomicAdd(&keyHistCounts[i], 1);
+                    break;
+                }
+            }
+        }
+        else {
+            //TODO: Hilbert change
+            unsigned long hilbert = Lebesgue2Hilbert(key, 21);
+
+            for (int i = 0; i < (bins); i++) {
+                if (hilbert >= keyHistRanges[i] && hilbert < keyHistRanges[i + 1]) {
+                    //keyHistCounts[i] += 1;
+                    atomicAdd(&keyHistCounts[i], 1);
+                    break;
+                }
             }
         }
 

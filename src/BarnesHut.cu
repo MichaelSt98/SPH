@@ -22,13 +22,13 @@ void CheckCudaCall(cudaError_t command, const char * commandName, const char * f
 void BarnesHut::initRange() {
     // equidistant initialization of ranges
     for (int i=0; i<h_subDomainHandler->numProcesses; i++) {
-        if (i != 0) {
+        /*if (i != 0) {
             h_subDomainHandler->range[i] = i * (1UL << 63) / (h_subDomainHandler->numProcesses) + 1024UL;
         }
         else {
             h_subDomainHandler->range[i] = i * (1UL << 63) / (h_subDomainHandler->numProcesses);
-        }
-        //h_subDomainHandler->range[i] = i * (1UL << 63)/(h_subDomainHandler->numProcesses + 1);
+        }*/
+        h_subDomainHandler->range[i] = i * (1UL << 63)/(h_subDomainHandler->numProcesses + 1);
     }
     h_subDomainHandler->range[h_subDomainHandler->numProcesses] = KEY_MAX;
 }
@@ -435,9 +435,15 @@ void BarnesHut::update(int step)
     //gpuErrorcheck(cudaGetDevice(&device));
     //Logger(INFO) << "update() on device " << device << "...";
 
-    if (step%10 == 0 && step != 0) {
-        //newLoadDistribution();
+    //if (step%10 == 0 && step != 0) {
+    if (parameters.loadBalancing) {
+        Logger(INFO) << "load balancing ...";
+        if (step == 0 || step % parameters.loadBalancingInterval == 0) {
+            newLoadDistribution();
+        }
     }
+
+    Logger(INFO) << "curve type: " << parameters.curveType;
 
     /*RESETTING ARRAYS*************************************************************************/
     float elapsedTime;
@@ -500,12 +506,13 @@ void BarnesHut::update(int step)
 
     // count particles per process (on each local process)
     KernelHandler.particlesPerProcess(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
-                                      d_min_z, d_max_z, numParticlesLocal, numNodes, d_subDomainHandler, d_procCounter, d_procCounterTemp);
+                                      d_min_z, d_max_z, numParticlesLocal, numNodes, d_subDomainHandler, d_procCounter, d_procCounterTemp,
+                                      parameters.curveType);
 
     // mark particles according to process they belong to (on each local process)
     KernelHandler.markParticlesProcess(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
                                        d_min_z, d_max_z, numParticlesLocal, numNodes, d_subDomainHandler, d_procCounter, d_procCounterTemp,
-                                       d_sortArray);
+                                       d_sortArray, parameters.curveType);
 
 
     // position
@@ -657,7 +664,8 @@ void BarnesHut::update(int step)
 
     /*BUILDING TREE*************************************************************************/
 
-    KernelHandler.createDomainList(d_subDomainHandler, 21, d_domainListKeys, d_domainListLevels, d_domainListIndex);
+    KernelHandler.createDomainList(d_subDomainHandler, 21, d_domainListKeys, d_domainListLevels,
+                                   d_domainListIndex, parameters.curveType);
 
     //debugging
     int indexBeforeBuildingTree;
@@ -1333,7 +1341,7 @@ float BarnesHut::parallelForce() {
     //compTheta
     KernelHandler.compTheta(d_x, d_y, d_z, d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z, d_domainListIndex, d_domainListCounter,
                             d_domainListKeys, d_domainListIndices, d_domainListLevels, d_relevantDomainListIndices,
-                            d_subDomainHandler, false);
+                            d_subDomainHandler, parameters.curveType, false);
 
     int relevantIndicesCounter;
     gpuErrorcheck(cudaMemcpy(&relevantIndicesCounter, d_domainListCounter, sizeof(int), cudaMemcpyDeviceToHost));

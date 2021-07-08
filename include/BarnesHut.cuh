@@ -210,7 +210,7 @@ private:
 
     void newLoadDistribution();
     void updateRange();
-    void updateRangeApproximately(int aimedParticlesPerProcess, int bins=1000);
+    void updateRangeApproximately(int aimedParticlesPerProcess, int bins=4000);
 
 public:
 

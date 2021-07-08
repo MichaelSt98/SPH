@@ -200,7 +200,7 @@ float KernelsWrapper::domainListInfo(float *x, float *y, float *z, float *mass, 
 float KernelsWrapper::particlesPerProcess(float *x, float *y, float *z, float *mass, int *count, int *start, int *child,
                                           int *index, float *minX, float *maxX, float *minY, float *maxY, float *minZ,
                                           float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
-                                          int *procCounterTemp, bool timing) {
+                                          int *procCounterTemp, int curveType, bool timing) {
 
     float elapsedTime = 0.f;
     if (timing) {
@@ -211,7 +211,7 @@ float KernelsWrapper::particlesPerProcess(float *x, float *y, float *z, float *m
 
         particlesPerProcessKernel<<< gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
                                                    minX, maxX, minY, maxY, minZ, maxZ, n, m, s, procCounter,
-                                                   procCounterTemp);
+                                                   procCounterTemp, curveType);
 
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
@@ -222,7 +222,7 @@ float KernelsWrapper::particlesPerProcess(float *x, float *y, float *z, float *m
     else {
         particlesPerProcessKernel<<< gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
                                                              minX, maxX, minY, maxY, minZ, maxZ, n, m, s, procCounter,
-                                                             procCounterTemp);
+                                                             procCounterTemp, curveType);
     }
     return elapsedTime;
 }
@@ -230,7 +230,7 @@ float KernelsWrapper::particlesPerProcess(float *x, float *y, float *z, float *m
 float KernelsWrapper::markParticlesProcess(float *x, float *y, float *z, float *mass, int *count, int *start, int *child,
                                            int *index, float *minX, float *maxX, float *minY, float *maxY, float *minZ,
                                            float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
-                                           int *procCounterTemp, int *sortArray, bool timing) {
+                                           int *procCounterTemp, int *sortArray, int curveType, bool timing) {
 
     float elapsedTime = 0.f;
     if (timing) {
@@ -241,7 +241,8 @@ float KernelsWrapper::markParticlesProcess(float *x, float *y, float *z, float *
 
         markParticlesProcessKernel<<< gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
                                                               minX, maxX, minY, maxY, minZ, maxZ, n, m, s,
-                                                              procCounter, procCounterTemp, sortArray);
+                                                              procCounter, procCounterTemp, sortArray,
+                                                              curveType);
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
         cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
@@ -251,7 +252,8 @@ float KernelsWrapper::markParticlesProcess(float *x, float *y, float *z, float *
     else {
         markParticlesProcessKernel<<< gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
                                                               minX, maxX, minY, maxY, minZ, maxZ, n, m, s,
-                                                              procCounter, procCounterTemp, sortArray);
+                                                              procCounter, procCounterTemp, sortArray,
+                                                              curveType);
     }
     return elapsedTime;
 }
@@ -409,7 +411,7 @@ float KernelsWrapper::traverseIterative(float *x, float *y, float *z, float *mas
 }
 
 float KernelsWrapper::createDomainList(SubDomainKeyTree *s, int maxLevel, unsigned long *domainListKeys, int *levels,
-                                       int *index, bool timing) {
+                                       int *index, int curveType, bool timing) {
 
     float elapsedTime = 0.f;
     if (timing) {
@@ -418,7 +420,7 @@ float KernelsWrapper::createDomainList(SubDomainKeyTree *s, int maxLevel, unsign
         cudaEventCreate(&stop_t);
         cudaEventRecord(start_t, 0);
 
-        createDomainListKernel<<<1, 1>>>(s, maxLevel, domainListKeys, levels, index);
+        createDomainListKernel<<<1, 1>>>(s, maxLevel, domainListKeys, levels, index, curveType);
 
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
@@ -427,7 +429,7 @@ float KernelsWrapper::createDomainList(SubDomainKeyTree *s, int maxLevel, unsign
         cudaEventDestroy(stop_t);
     }
     else {
-        createDomainListKernel<<<1, 1>>>(s, maxLevel, domainListKeys, levels, index);
+        createDomainListKernel<<<1, 1>>>(s, maxLevel, domainListKeys, levels, index, curveType);
     }
     return elapsedTime;
 }
@@ -832,7 +834,7 @@ float KernelsWrapper::symbolicForce(int relevantIndex, float *x, float *y, float
 float KernelsWrapper::compTheta(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
                                 float *minZ, float *maxZ, int *domainListIndex, int *domainListCounter,
                                 unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
-                                int *relevantDomainListIndices, SubDomainKeyTree *s, bool timing) {
+                                int *relevantDomainListIndices, SubDomainKeyTree *s, int curveType, bool timing) {
 
     float elapsedTime = 0.f;
     if (timing) {
@@ -843,7 +845,7 @@ float KernelsWrapper::compTheta(float *x, float *y, float *z, float *minX, float
 
         compThetaKernel<<<gridSize, blockSize>>>(x, y, z, minX, maxX, minY, maxY, minZ, maxZ, domainListIndex,
                                                  domainListCounter, domainListKeys, domainListIndices, domainListLevels,
-                                                 relevantDomainListIndices, s);
+                                                 relevantDomainListIndices, s, curveType);
 
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
@@ -854,7 +856,7 @@ float KernelsWrapper::compTheta(float *x, float *y, float *z, float *minX, float
     else {
         compThetaKernel<<<gridSize, blockSize>>>(x, y, z, minX, maxX, minY, maxY, minZ, maxZ, domainListIndex,
                                                  domainListCounter, domainListKeys, domainListIndices, domainListLevels,
-                                                 relevantDomainListIndices, s);
+                                                 relevantDomainListIndices, s, curveType);
     }
     return elapsedTime;
 }

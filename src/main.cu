@@ -61,6 +61,7 @@ int main(int argc, char** argv)
         cxxopts::Options options("HPC NBody", "Multi-GPU CUDA Barnes-Hut NBody code");
 
         bool render = false;
+        bool loadBalancing = false;
 
         options.add_options()
                 ("r,render", "render simulation", cxxopts::value<bool>(render))
@@ -69,6 +70,9 @@ int main(int argc, char** argv)
                 ("b,blocksize", "block size", cxxopts::value<int>()->default_value("256"))
                 ("g,gridsize", "grid size", cxxopts::value<int>()->default_value("1024"))
                 ("R,renderinterval", "render interval", cxxopts::value<int>()->default_value("10"))
+                ("l,loadbalancing", "load balancing", cxxopts::value<bool>(loadBalancing))
+                ("L,loadbalancinginterval", "load balancing interval", cxxopts::value<int>()->default_value("10"))
+                ("c,curvetype", "curve type (Lebesgue/Hilbert)", cxxopts::value<int>()->default_value("0"))
                 ("v,verbosity", "Verbosity level")
                 ("h,help", "Show this help");
 
@@ -96,6 +100,9 @@ int main(int argc, char** argv)
         parameters.stackSize = 64;
         parameters.renderInterval = result["renderinterval"].as<int>(); //10;
         parameters.timeKernels = true;
+        parameters.loadBalancing = loadBalancing;
+        parameters.loadBalancingInterval = result["loadbalancinginterval"].as<int>();
+        parameters.curveType = result["curvetype"].as<int>();
 
         LOGCFG.headers = true;
         /*if (result.count("verbosity")) {

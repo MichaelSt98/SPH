@@ -21,6 +21,21 @@
 
 #include <thrust/device_vector.h>
 
+// table needed to convert from Lebesgue to Hilbert keys
+__device__ const unsigned char DirTable[12][8] =
+        { { 8,10, 3, 3, 4, 5, 4, 5}, { 2, 2,11, 9, 4, 5, 4, 5},
+          { 7, 6, 7, 6, 8,10, 1, 1}, { 7, 6, 7, 6, 0, 0,11, 9},
+          { 0, 8, 1,11, 6, 8, 6,11}, {10, 0, 9, 1,10, 7, 9, 7},
+          {10, 4, 9, 4,10, 2, 9, 3}, { 5, 8, 5,11, 2, 8, 3,11},
+          { 4, 9, 0, 0, 7, 9, 2, 2}, { 1, 1, 8, 5, 3, 3, 8, 6},
+          {11, 5, 0, 0,11, 6, 2, 2}, { 1, 1, 4,10, 3, 3, 7,10} };
+
+// table needed to convert from Lebesgue to Hilbert keys
+__device__ const unsigned char HilbertTable[12][8] = { {0,7,3,4,1,6,2,5}, {4,3,7,0,5,2,6,1}, {6,1,5,2,7,0,4,3},
+                                                       {2,5,1,6,3,4,0,7}, {0,1,7,6,3,2,4,5}, {6,7,1,0,5,4,2,3},
+                                                       {2,3,5,4,1,0,6,7}, {4,5,3,2,7,6,0,1}, {0,3,1,2,7,4,6,5},
+                                                       {2,1,3,0,5,6,4,7}, {4,7,5,6,3,0,2,1}, {6,5,7,4,1,2,0,3} };
+
 /**
  * Reset the arrays/pointers.
  */
@@ -56,12 +71,12 @@ __global__ void lowestDomainListNodesKernel(int *domainListIndices, int *domainL
 __global__ void particlesPerProcessKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                     int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                     float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
-                                    int *procCounterTemp);
+                                    int *procCounterTemp, int curveType=0);
 
 __global__ void markParticlesProcessKernel(float *x, float *y, float *z, float *mass, int *count, int *start,
                                            int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                            float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
-                                           int *procCounterTemp, int *sortArray);
+                                           int *procCounterTemp, int *sortArray, int curveType=0);
 
 __global__ void copyArrayKernel(float *targetArray, float *sourceArray, int n);
 
@@ -99,13 +114,15 @@ __device__ unsigned long getParticleKeyPerParticle(float x, float y, float z,
                                                    float *maxY, float *minZ, float *maxZ,
                                                    int maxLevel);
 
-__device__ int key2proc(unsigned long k, SubDomainKeyTree *s);
+__device__ int key2proc(unsigned long k, SubDomainKeyTree *s, int curveType=0);
+
+__device__ unsigned long Lebesgue2Hilbert(unsigned long lebesgue, int maxLevel);
 
 __global__ void traverseIterativeKernel(float *x, float *y, float *z, float *mass, int *child, int n, int m,
                          SubDomainKeyTree *s, int maxLevel);
 
 __global__ void createDomainListKernel(SubDomainKeyTree *s, int maxLevel, unsigned long *domainListKeys, int *levels,
-                                       int *index);
+                                       int *index, int curveType=0);
 
 __global__ void prepareLowestDomainExchangeKernel(float *entry, float *mass, float *tempArray, int *lowestDomainListIndices,
                                                   int *lowestDomainListIndex, unsigned long *lowestDomainListKeys,
@@ -135,7 +152,7 @@ __global__ void compDomainListPseudoParticlesParKernel(float *x, float *y, float
                                                        int *domainListLevels, int *lowestDomainListIndices,
                                                        int *lowestDomainListIndex);
 
-__device__ bool isDomainListNode(unsigned long key, int maxLevel, int level, SubDomainKeyTree *s);
+__device__ bool isDomainListNode(unsigned long key, int maxLevel, int level, SubDomainKeyTree *s, int curveType=0);
 
 __device__ unsigned long keyMaxLevel(unsigned long key, int maxLevel, int level, SubDomainKeyTree *s);
 
@@ -174,7 +191,7 @@ __global__ void symbolicForceKernel(int relevantIndex, float *x, float *y, float
 __global__ void compThetaKernel(float *x, float *y, float *z, float *minX, float *maxX, float *minY, float *maxY,
                                 float *minZ, float *maxZ, int *domainListIndex, int *domainListCounter,
                                 unsigned long *domainListKeys, int *domainListIndices, int *domainListLevels,
-                                int *relevantDomainListIndices, SubDomainKeyTree *s);
+                                int *relevantDomainListIndices, SubDomainKeyTree *s, int curveType=0);
 
 /**
  * Kernel 6: updates the bodies
@@ -213,7 +230,7 @@ __global__ void createKeyHistRangesKernel(int bins, unsigned long *keyHistRanges
 __global__ void keyHistCounterKernel(unsigned long *keyHistRanges, int *keyHistCounts, int bins, int n,
                                      float *x, float *y, float *z, float *mass, int *count, int *start,
                                      int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
-                                     float *minZ, float *maxZ, SubDomainKeyTree *s);
+                                     float *minZ, float *maxZ, SubDomainKeyTree *s, int curveType=0);
 
 __global__ void calculateNewRangeKernel(unsigned long *keyHistRanges, int *keyHistCounts, int bins, int n,
                                         float *x, float *y, float *z, float *mass, int *count, int *start,
