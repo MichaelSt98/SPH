@@ -1,97 +1,51 @@
-# SPH
+# HPC SPH/N-body
 
-**Parallel Smooth(ed) Particle Hydrodynamics (SPH) implementation for astrophysical simulations including self-gravity.**
+**High Performance Computing Smooth(ed) Particle Hydrodynamics/N-body simulations.**
 
-* SPH corresponds to short range forces
-* (self-) gravity correpsonds to long range forces
-	* implemented via the Barnes-Hut algorithm (see [1])
-	* see [MichaelSt98/NNS](https://github.com/MichaelSt98/NNS/tree/main) for different implementations
-* parallel implemententation via the **M**essage **P**assing **I**nterface
+## Aim
 
-Example: **NBody** (self-gravity)
+Overall aim is to write a Multi-CPU and/or Multi-GPU (thus HPC) SPH code including self-gravity targeting distributed memory systems.  
 
-![nbody](resources/nbody.gif)
+SPH includes short-range forces and self-gravity or generally gravity corresponds to long-range forces, wherefore solving the N-body problem is a milestone to achieve a SPH code including self-gravity. 
 
-Example: **SPH** (SPH + self-gravity)
+**Primary aim is a proof of concept.**
 
-![sph](resources/sph.gif)
+## Challenges
 
+The problem is not trivially parallelizable, especially regarding
 
-## Usage
+* distributed memory
+* load balancing
 
-### Compilation
+since forces act over the whole domain.
 
-* Compilation via `Makefile`
-	* `make` to build project
-	* `make remake` to clean and afterwards build
-	* `make clean` to delete object files
-	* `make cleaner` to delete object files and binaries 
+In an abstract way the problem can be summarized to:  
+reduce communication amount (performance) vs. reduce amount of (locally required) memory 
 
-### Settings
+Some consequences:
 
-**Settings via config files (`.info`)**
-
-* *config/config.info* 
-* *config/rendering.info*
+* Brute-force self-gravity not applicable
+* Collecting/Gathering information on one process need to be avoided at all costs
 
 
-| setting             | example value | description                                             |
-|---------------------|---------------|---------------------------------------------------------|
-| numParticles        | 200           | number of particles (per process)                       |
-| systemSize          | 5.            | system size in every direction                          |
-| timeStep            | .15           | integration time step                                   |
-| timeEnd             | 100.0         | integrate until reached                                 |
-| initMass            | 1e-4          | (initialization value for) mass of particles            |
-| initVel             | .125          | (initialization value for) velocity of particles        |
-| smoothingLength     | 0.5           | smoothing length of particles                           |
-| outputRank          | 0             | rank to output in the shell (`-1` to output all ranks)  |
-| loadBalancing       | true          | load balancing y/n                                      |
-| distributionType    | 0             | which initial distribution to use                       |
-| curveType           | 0             | which space-filling curve to use (Lebesque or Hilbert)  |
+## Parallelization
 
+* The **M**essage **P**assing **I**nterface (MPI) is used for the internode (and currently also for the intranode) communication
+* **CUDA** is used for GPGPU programming targeting NVIDIA GPUs
+* OpenMP could be used in the future for intranode optimizations
 
-### Running
+## Implementation
 
-* run via
-	* `mpirun -np <number of processes> ./bin/runner`
-	* `mpiexec -n <number of processes> ./bin/runner`
+Self-gravity is implemented via the **Barnes-Hut method**, thus using an Octree, which can be used for the **Neighborhood-search** as well, enabling SPH.
 
-### Debugging
+### Multi-CPU
 
-* serial debugger (lldb/gdb) per process
-	* MacOS
-		* run `./debug/lldb_debug.sh`
-		* breakpoints/settings in *debug/initPipe.lldb*
-	* Linux distribution (tested on Ubuntu)
-		* run `./debug/gdb_debug.sh`
-		* breakpoints/settings in *debug/initPipe.gdb*
-* [Valgrind](https://valgrind.org/) (only available on Linux distributions e.g. Ubuntu)
-	* run 
-		* `mpirun -np <number of processes> valgrind ./bin/runner` 
-		* `mpirun -np <number of processes> valgrind --leak-check=full ./bin/runner` 
+See [MultiCPU](MultiCPU/README.md) for more information.
 
-### Postprocessing
+**Current status:** Multi-CPU N-body & basic SPH working!
 
-* If simulation saved as pictures `.ppm` within *images/*
-	* create movie via `./utilities/createMP4` 
-		* `open movie.mp4` 
-	* create gif from movie via `./utilities/createGifFromMP4`
-		* `open output.gif` 
+### Multi-GPU
 
-## References
+See [MultiGPU](MultiGPU/README.md) for more information.
 
-* **[1]** M. Griebel, S. Knapek, and G. Zumbusch. **Numerical Simulation in Molecular Dynamics**: Numerics, Algorithms, Parallelization, Applications. 1st. Springer Pub- lishing Company, Incorporated, 2010. isbn: 3642087760
-	* **within the following sections:** 
-	* 8 Tree Algorithms for Long-Range Potentials 
-	* 8.1 Series Expansion of the Potential 
-	* 8.2 Tree Structures for the Decomposition of the Far Field 
-	* 8.3 Particle-Cluster Interactions and the Barnes-Hut Method 
-		* 8.3.1 Method 
-		* 8.3.2 Implementation
-		* 8.3.3 Applications from Astrophysics
-	* 8.4 **ParallelTreeMethods**
-		* 8.4.1 **An Implementation with Keys** 
-		* 8.4.2 **Dynamical Load Balancing** 
-		* 8.4.3 **Data Distribution with Space-Filling Curves**
-
-
+**Current status:** Multi-GPU N-body working, but **not** yet extended to SPH!
