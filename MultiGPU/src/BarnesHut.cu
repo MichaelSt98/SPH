@@ -273,6 +273,12 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     gpuErrorcheck(cudaMalloc((void**)&d_count, numNodes*sizeof(int)));
     gpuErrorcheck(cudaMalloc((void**)&d_mutex, sizeof(int)));
 
+    gpuErrorcheck(cudaMalloc((void**)&d_sphInteractions, MAX_NUM_INTERACTIONS*numParticles*sizeof(int)));
+    //gpuErrorcheck(cudaMemset(d_sphInteractions, -1, MAX_NUM_INTERACTIONS*numParticles*sizeof(int)));
+
+    gpuErrorcheck(cudaMalloc((void**)&d_sphNumberOfInteractions, numParticles*sizeof(int)));
+    //gpuErrorcheck(cudaMemset(d_sphInteractions, -1, MAX_NUM_INTERACTIONS*numParticles*sizeof(int)));
+
     gpuErrorcheck(cudaMalloc((void**)&d_subDomainHandler, sizeof(SubDomainKeyTree)));
     int size = 2 * sizeof(int) + 3 * sizeof(unsigned long);
     gpuErrorcheck(cudaMalloc((void**)&d_range, size));
@@ -795,6 +801,21 @@ void BarnesHut::update(int step)
     Logger(INFO) << "-----------------------------------------------------------------------------------------";
 
     gatherParticles(true, true);
+
+    // collect particles to be send (sphParticles2SendKernel)
+    // send particles (using MPI)
+    // insert particles into local tree
+    // TODO: check if particles from gravity are deleted
+
+    // local neighbor search
+    KernelHandler.fixedRadiusNN(d_sphInteractions, d_sphNumberOfInteractions, d_x, d_y, d_z, d_child, d_min_x, d_max_x, d_min_y, d_max_y,
+                                 d_min_z, d_max_z, 5e-2, numParticlesLocal, numParticles, numNodes, false);
+
+    KernelHandler.sphDebug(d_sphInteractions, d_sphNumberOfInteractions, d_x, d_y, d_z, d_child, d_min_x, d_max_x, d_min_y, d_max_y,
+                                 d_min_z, d_max_z, 5e-2, numParticlesLocal, numParticles, numNodes, false);
+
+    // sph force(s)
+    // TODO: move updating particles to here!
 
     step++;
 }

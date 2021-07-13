@@ -10,6 +10,8 @@
 #define CUDA_NBODY_KERNELS_CUH
 
 //#define KEY_MAX ULONG_MAX
+#define MAXDEPTH 128
+#define MAX_NUM_INTERACTIONS 180
 
 #include "Constants.h"
 #include "SubDomainKeyTree.cuh"
@@ -236,4 +238,13 @@ __global__ void calculateNewRangeKernel(unsigned long *keyHistRanges, int *keyHi
                                         float *x, float *y, float *z, float *mass, int *count, int *start,
                                         int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                         float *minZ, float *maxZ, SubDomainKeyTree *s);
+
+__global__ void fixedRadiusNNKernel(int *interactions, int *numberOfInteractions, float *x, float *y, float *z, int *child, float *minX, float *maxX,
+                              float *minY, float *maxY, float *minZ, float *maxZ, float sml,
+                              int numParticlesLocal, int numParticles, int numNodes);
+
+__global__ void sphDebugKernel(int *interactions, int *numberOfInteractions, float *x, float *y, float *z, int *child, float *minX, float *maxX,
+                               float *minY, float *maxY, float *minZ, float *maxZ, float sml,
+                               int numParticlesLocal, int numParticles, int numNodes);
+
 #endif //CUDA_NBODY_KERNELS_CUH

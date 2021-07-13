@@ -176,6 +176,9 @@ private:
     int *d_sorted;
     int *d_count;
 
+    int *d_sphInteractions;
+    int *d_sphNumberOfInteractions;
+
 
     //float *h_output;  //host output array for visualization
     //float *d_output;  //device output array for visualization

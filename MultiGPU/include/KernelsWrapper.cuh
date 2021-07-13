@@ -188,6 +188,14 @@ public:
                                             int *child, int *index, float *minX, float *maxX, float *minY, float *maxY,
                                             float *minZ, float *maxZ, SubDomainKeyTree *s, bool timing=false);
 
+    float fixedRadiusNN(int *interactions, int *numberOfInteractions, float *x, float *y, float *z, int *child, float *minX, float *maxX,
+                             float *minY, float *maxY, float *minZ, float *maxZ, float sml,
+                             int numParticlesLocal, int numParticles, int numNodes, bool timing=false);
+
+    float sphDebug(int *interactions, int *numberOfInteractions, float *x, float *y, float *z, int *child, float *minX, float *maxX,
+                                   float *minY, float *maxY, float *minZ, float *maxZ, float sml,
+                                   int numParticlesLocal, int numParticles, int numNodes, bool timing=false);
+
 };
 
 #endif //CUDA_NBODY_KERNELSWRAPPER_H

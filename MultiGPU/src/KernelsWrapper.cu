@@ -1101,3 +1101,67 @@ float KernelsWrapper::calculateNewRange(unsigned long *keyHistRanges, int *keyHi
     return elapsedTime;
 
 }
+
+
+float KernelsWrapper::fixedRadiusNN(int *interactions, int *numberOfInteractions, float *x, float *y, float *z, int *child, float *minX, float *maxX,
+                     float *minY, float *maxY, float *minZ, float *maxZ, float sml,
+                     int numParticlesLocal, int numParticles, int numNodes, bool timing) {
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t;
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        //Kernel call
+        fixedRadiusNNKernel<<<gridSize, blockSize>>>(interactions, numberOfInteractions, x, y, z, child, minX, maxX, minY, maxY, minZ, maxZ,
+                                                     sml, numParticlesLocal, numParticles, numNodes);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        //Kernel call
+        fixedRadiusNNKernel<<<gridSize, blockSize>>>(interactions, numberOfInteractions, x, y, z, child, minX, maxX, minY, maxY, minZ, maxZ,
+                                                     sml, numParticlesLocal, numParticles, numNodes);
+
+    }
+    return elapsedTime;
+
+}
+
+
+float KernelsWrapper::sphDebug(int *interactions, int *numberOfInteractions, float *x, float *y, float *z, int *child, float *minX, float *maxX,
+               float *minY, float *maxY, float *minZ, float *maxZ, float sml,
+               int numParticlesLocal, int numParticles, int numNodes, bool timing) {
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t;
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        //Kernel call
+        sphDebugKernel<<<gridSize, blockSize>>>(interactions, numberOfInteractions, x, y, z, child, minX, maxX, minY, maxY, minZ, maxZ,
+                                                     sml, numParticlesLocal, numParticles, numNodes);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        //Kernel call
+        sphDebugKernel<<<gridSize, blockSize>>>(interactions, numberOfInteractions, x, y, z, child, minX, maxX, minY, maxY, minZ, maxZ,
+                                                     sml, numParticlesLocal, numParticles, numNodes);
+
+    }
+    return elapsedTime;
+
+}

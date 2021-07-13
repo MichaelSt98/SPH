@@ -2299,3 +2299,235 @@ __global__ void calculateNewRangeKernel(unsigned long *keyHistRanges, int *keyHi
     }
 
 }
+
+/* MILUPHCUDA: search interaction partners for each particle
+__global__ void nearNeighbourSearch(int *interactions)
+{
+    register int i, inc, nodeIndex, depth, childNumber, child;
+    register double x, interactionDistance, dx, r, d;
+    register double y, dy;
+    register int currentNodeIndex[MAXDEPTH];
+    register int currentChildNumber[MAXDEPTH];
+    register int numberOfInteractions;
+    register double z, dz;
+
+    inc = blockDim.x * gridDim.x;
+    for (i = threadIdx.x + blockIdx.x * blockDim.x; i < numParticles; i += inc) {
+
+        x = p.x[i];
+        y = p.y[i];
+		z = p.z[i];
+
+        double sml;
+        double smlj;
+        // start at root
+        depth = 0;
+        currentNodeIndex[depth] = numNodes - 1;
+        currentChildNumber[depth] = 0;
+        numberOfInteractions = 0;
+        r = radius * 0.5; // because we start with root children
+        sml = p.h[i];
+        p.noi[i] = 0;
+        interactionDistance = (r + sml);
+
+        do {
+
+            childNumber = currentChildNumber[depth];
+            nodeIndex = currentNodeIndex[depth];
+
+            while (childNumber < numChildren) {
+
+                child = childList[childListIndex(nodeIndex, childNumber)];
+                childNumber++;
+                if (child != EMPTY && child != i) {
+                    dx = x - p.x[child];
+                    dy = y - p.y[child];
+					dz = z - p.z[child];
+
+                    if (child < numParticles) {
+
+                        d = dx*dx + dy*dy + dz*dz;
+
+                        smlj = p.h[child];
+
+                        if (d < sml*sml && d < smlj*smlj) {
+                            interactions[i * MAX_NUM_INTERACTIONS + numberOfInteractions] = child;
+                            numberOfInteractions++;
+                        }
+                    } else if (fabs(dx) < interactionDistance && fabs(dy) < interactionDistance
+                                        && fabs(dz) < interactionDistance) {
+                        // put child on stack
+                        currentChildNumber[depth] = childNumber;
+                        currentNodeIndex[depth] = nodeIndex;
+                        depth++;
+                        r *= 0.5;
+                        interactionDistance = (r + sml);
+                        if (depth >= MAXDEPTH) {
+                            printf("Error, maxdepth reached!");
+                            assert(depth < MAXDEPTH);
+                        }
+                        childNumber = 0;
+                        nodeIndex = child;
+                    }
+                }
+            }
+
+            depth--;
+            r *= 2.0;
+            interactionDistance = (r + sml);
+
+        } while (depth >= 0);
+
+        if (numberOfInteractions >= MAX_NUM_INTERACTIONS) {
+            //printf("ERROR: Maximum number of interactions exceeded: %d / %d\n", numberOfInteractions, MAX_NUM_INTERACTIONS);
+
+
+			//for (child = 0; child < MAX_NUM_INTERACTIONS; child++) {
+			//	printf("(thread %d): %d - %d\n", threadIdx.x, i, interactions[i*MAX_NUM_INTERACTIONS+child]);
+			//}
+        }
+        p.noi[i] = numberOfInteractions;
+    }
+}*/
+
+__global__ void fixedRadiusNNKernel(int *interactions, int *numberOfInteractions, float *x, float *y, float *z, int *child, float *minX, float *maxX,
+                              float *minY, float *maxY, float *minZ, float *maxZ, float sml,
+                              int numParticlesLocal, int numParticles, int numNodes) {
+
+    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+    int offset = 0;
+
+    int childNumber, nodeIndex, depth, childIndex;
+    float dx, dy, dz, d;
+    float x_radius, y_radius, z_radius, r_temp, r, interactionDistance;
+
+    int noOfInteractions;
+
+    int currentNodeIndex[MAXDEPTH];
+    int currentChildNumber[MAXDEPTH];
+
+    while ((bodyIndex + offset) < numParticlesLocal) {
+
+        // resetting
+        for (int i=0; i<MAX_NUM_INTERACTIONS; i++) {
+            interactions[(bodyIndex + offset) * MAX_NUM_INTERACTIONS + i] = -1;
+        }
+        //numberOfInteractions[bodyIndex + offset] = 0;
+        // end: resetting
+
+        depth = 0;
+        currentNodeIndex[depth] = 0; //numNodes - 1;
+        currentChildNumber[depth] = 0;
+        noOfInteractions = 0;
+
+        x_radius = 0.5*(*maxX - (*minX));
+        y_radius = 0.5*(*maxY - (*minY));
+        z_radius = 0.5*(*maxZ - (*minZ));
+
+        r_temp = fmaxf(x_radius, y_radius);
+        r = fmaxf(r_temp, z_radius); //TODO: (0.5 * r) or (1.0 * r)
+
+        interactionDistance = (r + sml);
+
+        do {
+            childNumber = currentChildNumber[depth];
+            nodeIndex = currentNodeIndex[depth];
+
+            while (childNumber < 8) {
+                childIndex = child[8*nodeIndex + childNumber];
+                childNumber++;
+
+                if (childIndex != -1 && childIndex != (bodyIndex + offset)) {
+                    dx = x[bodyIndex + offset] - x[childIndex];
+                    dy = y[bodyIndex + offset] - y[childIndex];
+                    dz = z[bodyIndex + offset] - z[childIndex];
+
+                    // its a leaf
+                    if (childIndex < numParticles) {
+                        d = dx*dx + dy*dy + dz*dz;
+
+                        if ((bodyIndex + offset) % 1000 == 0) {
+                            //printf("sph: index = %i, d = %i\n", bodyIndex+offset, d);
+                        }
+
+                        if (d < (sml * sml)) {
+                            //printf("Adding interaction partner!\n");
+                            interactions[(bodyIndex + offset) * MAX_NUM_INTERACTIONS +
+                                         noOfInteractions] = childIndex;
+                            noOfInteractions++;
+                        }
+                    }
+                    else if (fabs(dx) < interactionDistance &&
+                             fabs(dy) < interactionDistance &&
+                             fabs(dz) < interactionDistance) {
+                            // put child on stack
+                            currentChildNumber[depth] = childNumber;
+                            currentNodeIndex[depth] = nodeIndex;
+                            depth++;
+                            r *= 0.5;
+                            interactionDistance = (r + sml);
+
+                            if (depth > MAXDEPTH) {
+                                printf("ERROR: maximal depth reached! MAXDEPTH = %i\n", MAXDEPTH);
+                                assert(depth < MAXDEPTH);
+                            }
+                            childNumber = 0;
+                            nodeIndex = childIndex;
+                    }
+                }
+            }
+
+            depth--;
+            r *= 2.0;
+            interactionDistance = (r + sml);
+
+        } while(depth >= 0);
+
+        numberOfInteractions[bodyIndex + offset] = noOfInteractions;
+        offset += stride;
+    }
+}
+
+__global__ void sphDebugKernel(int *interactions, int *numberOfInteractions, float *x, float *y, float *z, int *child, float *minX, float *maxX,
+                               float *minY, float *maxY, float *minZ, float *maxZ, float sml,
+                               int numParticlesLocal, int numParticles, int numNodes) {
+
+    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+    int offset = 0;
+
+    while ((bodyIndex + offset) < numParticlesLocal) {
+
+        if ((bodyIndex + offset) % 1000 == 0) {
+            printf("index = %i  number of interactions: %i  (interactions[0] = %i interactions[1] = %i)\n", bodyIndex+offset,
+                   numberOfInteractions[bodyIndex + offset],
+                   interactions[(bodyIndex + offset) * MAX_NUM_INTERACTIONS + 0],
+                   interactions[(bodyIndex + offset) * MAX_NUM_INTERACTIONS + 1]);
+        }
+
+        offset += stride;
+    }
+
+}
+
+/*__global__ void sphParticles2SendKernel(int numParticlesLocal, int numParticles, int numNodes, int radius) {
+
+    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+    int offset = 0;
+
+    while ((bodyIndex + offset) < numParticles) {
+
+        // loop over (lowest?) domain list nodes
+        // check if (lowest?) domain list node belongs to other process
+        // check if particle is within radius of this node
+        // if: send
+        // else: do nothing
+
+        // - using sortArray to write 0 (not send) and 1 (send) collecting it afterwards for sending?!
+        // - is it necessary to alter keys to get real domain borders for different processes
+
+        offset += stride;
+    }
+}*/
