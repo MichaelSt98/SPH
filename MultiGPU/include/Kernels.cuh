@@ -49,6 +49,7 @@ __global__ void resetArraysParallelKernel(int *domainListIndex, unsigned long *d
                                           int *domainListIndices, int *domainListLevels,
                                           int *lowestDomainListIndices, int *lowestDomainListIndex,
                                           unsigned long *lowestDomainListKeys, unsigned long *sortedLowestDomainListKeys,
+                                          int *lowestDomainListLevels,
                                           float *tempArray, int *to_delete_cell,
                                           int *to_delete_leaf, int n, int m);
 
@@ -67,6 +68,7 @@ __global__ void lowestDomainListNodesKernel(int *domainListIndices, int *domainL
                                       unsigned long *domainListKeys,
                                       int *lowestDomainListIndices, int *lowestDomainListIndex,
                                       unsigned long *lowestDomainListKeys,
+                                      int *domainListLevels, int *lowestDomainListLevels,
                                       float *x, float *y, float *z, float *mass, int *count, int *start,
                                       int *child, int n, int m, int *procCounter);
 
@@ -246,5 +248,31 @@ __global__ void fixedRadiusNNKernel(int *interactions, int *numberOfInteractions
 __global__ void sphDebugKernel(int *interactions, int *numberOfInteractions, float *x, float *y, float *z, int *child, float *minX, float *maxX,
                                float *minY, float *maxY, float *minZ, float *maxZ, float sml,
                                int numParticlesLocal, int numParticles, int numNodes);
+
+/*__global__ void sphParticles2SendKernel(int numParticlesLocal, int numParticles, int numNodes, float radius,
+                                        float *x, float *y, float *z,
+                                        float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ,
+                                        SubDomainKeyTree *s, int *domainListIndex, unsigned long *domainListKeys,
+                                        int *domainListIndices, int *domainListLevels,
+                                        int *lowestDomainListIndices, int *lowestDomainListIndex,
+                                        unsigned long *lowestDomainListKeys, int *lowestDomainListLevels,
+                                        float sml, int maxLevel, int curveType,
+                                        int *toSend);*/
+
+__global__ void sphParticles2SendKernel(int numParticlesLocal, int numParticles, int numNodes, float radius,
+                                        float *x, float *y, float *z,
+                                        float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ,
+                                        SubDomainKeyTree *s, int *domainListIndex, unsigned long *domainListKeys,
+                                        int *domainListIndices, int *domainListLevels,
+                                        int *lowestDomainListIndices, int *lowestDomainListIndex,
+                                        unsigned long *lowestDomainListKeys, int *lowestDomainListLevels,
+                                        float sml, int maxLevel, int curveType,
+                                        int *toSend, int *sendCount, int *alreadyInserted, int insertOffset);
+
+__global__ void collectSendIndicesSPHKernel(int numParticlesLocal, int numParticles, int numNodes, int *toSend,
+                                            int *toSendCollected, int *sendCount, int insertOffset, SubDomainKeyTree *s);
+
+__global__ void collectSendEntriesSPHKernel(float *entry, float *toSend, int *sendIndices, int *sendCount,
+                                            int totalSendCount, int insertOffset, SubDomainKeyTree *s);
 
 #endif //CUDA_NBODY_KERNELS_CUH

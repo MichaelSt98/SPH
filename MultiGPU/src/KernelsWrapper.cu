@@ -4,6 +4,25 @@
 
 #include "../include/KernelsWrapper.cuh"
 
+void gpuAssert(cudaError_t code, const char *file, int line, bool abort)
+{
+    if (code != cudaSuccess)
+    {
+        fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+        if (abort) getchar();
+    }
+}
+
+void CheckCudaCall(cudaError_t command, const char * commandName, const char * fileName, int line)
+{
+    if (command != cudaSuccess)
+    {
+        fprintf(stderr, "Error: CUDA result \"%s\" for call \"%s\" in file \"%s\" at line %d. Terminating...\n",
+                cudaGetErrorString(command), commandName, fileName, line);
+        exit(0);
+    }
+}
+
 /*
 dim3 gridSize  = 1024; //2048; //1024; //512;
 dim3 blockSize = 256; //256;
@@ -12,6 +31,7 @@ dim3 blockSize = 256; //256;
 KernelsWrapper::KernelsWrapper() {
     gridSize = 0;
     blockSize = 0;
+    blockSizeInt = 0;
     blockSizeInt = 0;
     warp = 0;
     stackSize = 0;
@@ -57,7 +77,8 @@ float KernelsWrapper::resetArrays(int *mutex, float *x, float *y, float *z, floa
 float KernelsWrapper::resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys, int *domainListIndices,
                                           int *domainListLevels, int *lowestDomainListIndices,
                                           int *lowestDomainListIndex, unsigned long *lowestDomainListKeys,
-                                          unsigned long *sortedLowestDomainListKeys, float *tempArray,
+                                          unsigned long *sortedLowestDomainListKeys, int *lowestDomainListLevels,
+                                          float *tempArray,
                                           int *to_delete_cell, int *to_delete_leaf, int n, int m, bool timing) {
 
     float elapsedTime = 0.f;
@@ -69,7 +90,7 @@ float KernelsWrapper::resetArraysParallel(int *domainListIndex, unsigned long *d
 
         resetArraysParallelKernel<<< gridSize, blockSize >>>(domainListIndex, domainListKeys, domainListIndices,
                                                          domainListLevels, lowestDomainListIndices, lowestDomainListIndex,
-                                                         lowestDomainListKeys, sortedLowestDomainListKeys,
+                                                         lowestDomainListKeys, sortedLowestDomainListKeys, lowestDomainListLevels,
                                                          tempArray, to_delete_cell, to_delete_leaf, n, m);
 
         cudaEventRecord(stop_t, 0);
@@ -81,7 +102,7 @@ float KernelsWrapper::resetArraysParallel(int *domainListIndex, unsigned long *d
     else {
         resetArraysParallelKernel<<< gridSize, blockSize >>>(domainListIndex, domainListKeys, domainListIndices,
                                                              domainListLevels, lowestDomainListIndices, lowestDomainListIndex,
-                                                             lowestDomainListKeys, sortedLowestDomainListKeys,
+                                                             lowestDomainListKeys, sortedLowestDomainListKeys, lowestDomainListLevels,
                                                              tempArray, to_delete_cell, to_delete_leaf, n, m);
     }
     return elapsedTime;
@@ -534,7 +555,8 @@ float KernelsWrapper::update(float *x, float *y, float *z, float *vx, float *vy,
 
 float KernelsWrapper::lowestDomainListNodes(int *domainListIndices, int *domainListIndex, unsigned long *domainListKeys,
                                             int *lowestDomainListIndices, int *lowestDomainListIndex,
-                                            unsigned long *lowestDomainListKeys, float *x, float *y, float *z,
+                                            unsigned long *lowestDomainListKeys, int *domainListLevels, int *lowestDomainListLevels,
+                                            float *x, float *y, float *z,
                                             float *mass, int *count, int *start, int *child, int n, int m,
                                             int *procCounter, bool timing) {
 
@@ -547,7 +569,8 @@ float KernelsWrapper::lowestDomainListNodes(int *domainListIndices, int *domainL
 
         lowestDomainListNodesKernel<<<gridSize, blockSize>>>(domainListIndices, domainListIndex, domainListKeys,
                                                              lowestDomainListIndices, lowestDomainListIndex,
-                                                             lowestDomainListKeys, x, y, z, mass, count, start, child,
+                                                             lowestDomainListKeys, domainListLevels, lowestDomainListLevels,
+                                                             x, y, z, mass, count, start, child,
                                                              n, m, procCounter);
 
         cudaEventRecord(stop_t, 0);
@@ -559,7 +582,8 @@ float KernelsWrapper::lowestDomainListNodes(int *domainListIndices, int *domainL
     else {
         lowestDomainListNodesKernel<<<gridSize, blockSize>>>(domainListIndices, domainListIndex, domainListKeys,
                                                              lowestDomainListIndices, lowestDomainListIndex,
-                                                             lowestDomainListKeys, x, y, z, mass, count, start, child,
+                                                             lowestDomainListKeys, domainListLevels, lowestDomainListLevels,
+                                                             x, y, z, mass, count, start, child,
                                                              n, m, procCounter);
     }
     return elapsedTime;
@@ -1160,6 +1184,160 @@ float KernelsWrapper::sphDebug(int *interactions, int *numberOfInteractions, flo
         //Kernel call
         sphDebugKernel<<<gridSize, blockSize>>>(interactions, numberOfInteractions, x, y, z, child, minX, maxX, minY, maxY, minZ, maxZ,
                                                      sml, numParticlesLocal, numParticles, numNodes);
+
+    }
+    return elapsedTime;
+
+}
+
+
+/*float KernelsWrapper::sphParticles2Send(int numParticlesLocal, int numParticles, int numNodes, float radius,
+                                        float *x, float *y, float *z,
+                                        float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ,
+                        SubDomainKeyTree *s, int *domainListIndex, unsigned long *domainListKeys,
+                        int *domainListIndices, int *domainListLevels,
+                        int *lowestDomainListIndices, int *lowestDomainListIndex,
+                        unsigned long *lowestDomainListKeys, int *lowestDomainListLevels, float sml, int maxLevel, int curveType,
+                        int *toSend, bool timing) {
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t;
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        //Kernel call
+        sphParticles2SendKernel<<<gridSize, blockSize>>>(numParticlesLocal, numParticles, numNodes, radius,
+                                x, y, z, minX, maxX, minY, maxY, minZ, maxZ, s, domainListIndex, domainListKeys,
+                                domainListIndices, domainListLevels, lowestDomainListIndices, lowestDomainListIndex,
+                                lowestDomainListKeys, lowestDomainListLevels,
+                                sml, maxLevel, curveType, toSend);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        //Kernel call
+        sphParticles2SendKernel<<<gridSize, blockSize>>>(numParticlesLocal, numParticles, numNodes, radius,
+                                                         x, y, z, minX, maxX, minY, maxY, minZ, maxZ, s, domainListIndex, domainListKeys,
+                                                         domainListIndices, domainListLevels, lowestDomainListIndices, lowestDomainListIndex,
+                                                         lowestDomainListKeys, lowestDomainListLevels,
+                                                         sml, maxLevel, curveType, toSend);
+    }
+    return elapsedTime;
+
+}*/
+
+float KernelsWrapper::sphParticles2Send(int numParticlesLocal, int numParticles, int numNodes, float radius,
+                                        float *x, float *y, float *z,
+                                        float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ,
+                                        SubDomainKeyTree *s, int *domainListIndex, unsigned long *domainListKeys,
+                                        int *domainListIndices, int *domainListLevels,
+                                        int *lowestDomainListIndices, int *lowestDomainListIndex,
+                                        unsigned long *lowestDomainListKeys, int *lowestDomainListLevels, float sml, int maxLevel, int curveType,
+                                        int *toSend, int *sendCount, int *alreadyInserted, int insertOffset, bool timing) {
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t;
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        //Kernel call
+        sphParticles2SendKernel<<<gridSize, blockSize>>>(numParticlesLocal, numParticles, numNodes, radius,
+                                                         x, y, z, minX, maxX, minY, maxY, minZ, maxZ, s, domainListIndex, domainListKeys,
+                                                         domainListIndices, domainListLevels, lowestDomainListIndices, lowestDomainListIndex,
+                                                         lowestDomainListKeys, lowestDomainListLevels,
+                                                         sml, maxLevel, curveType, toSend, sendCount,
+                                                         alreadyInserted, insertOffset);
+
+        gpuErrorcheck( cudaPeekAtLastError() );
+        gpuErrorcheck( cudaDeviceSynchronize() );
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        //Kernel call
+        sphParticles2SendKernel<<<gridSize, blockSize>>>(numParticlesLocal, numParticles, numNodes, radius,
+                                                         x, y, z, minX, maxX, minY, maxY, minZ, maxZ, s, domainListIndex, domainListKeys,
+                                                         domainListIndices, domainListLevels, lowestDomainListIndices, lowestDomainListIndex,
+                                                         lowestDomainListKeys, lowestDomainListLevels,
+                                                         sml, maxLevel, curveType, toSend, sendCount,
+                                                         alreadyInserted, insertOffset);
+    }
+    return elapsedTime;
+
+}
+
+float KernelsWrapper::collectSendIndicesSPH(int numParticlesLocal, int numParticles, int numNodes, int *toSend,
+                            int *toSendCollected, int *sendCount, int insertOffset, SubDomainKeyTree *s,
+                            bool timing) {
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t;
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        //Kernel call
+        collectSendIndicesSPHKernel<<<gridSize, blockSize>>>(numParticlesLocal, numParticles, numNodes, toSend,
+                                                             toSendCollected, sendCount, insertOffset, s);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        //Kernel call
+        collectSendIndicesSPHKernel<<<gridSize, blockSize>>>(numParticlesLocal, numParticles, numNodes, toSend,
+                                                             toSendCollected, sendCount, insertOffset, s);
+    }
+    return elapsedTime;
+
+}
+
+float KernelsWrapper::collectSendEntriesSPH(float *entry, float *toSend, int *sendIndices, int *sendCount, int totalSendCount,
+                            int insertOffset, SubDomainKeyTree *s, bool timing) {
+
+    float elapsedTime = 0.f;
+    if (timing) {
+        cudaEvent_t start_t, stop_t;
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        gpuErrorcheck( cudaPeekAtLastError() );
+        gpuErrorcheck( cudaDeviceSynchronize() );
+
+        //Kernel call
+        collectSendEntriesSPHKernel<<<gridSize, blockSize>>>(entry, toSend, sendIndices, sendCount, totalSendCount,
+                                                             insertOffset, s);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        //Kernel call
+        collectSendEntriesSPHKernel<<<gridSize, blockSize>>>(entry, toSend, sendIndices, sendCount, totalSendCount,
+                                                             insertOffset, s);
+
+        gpuErrorcheck( cudaPeekAtLastError() );
+        gpuErrorcheck( cudaDeviceSynchronize() );
 
     }
     return elapsedTime;

@@ -7,9 +7,16 @@
 
 #include <iostream>
 #include <cuda.h>
+#include <cuda_runtime.h>
 
 #include "Kernels.cuh"
 #include "Constants.h"
+
+#define SafeCudaCall(call) CheckCudaCall(call, #call, __FILE__, __LINE__)
+#define gpuErrorcheck(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+
+void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true);
+void CheckCudaCall(cudaError_t command, const char * commandName, const char * fileName, int line);
 
 
 class KernelsWrapper {
@@ -33,6 +40,7 @@ public:
     float resetArraysParallel(int *domainListIndex, unsigned long *domainListKeys,  int *domainListIndices,
                              int *domainListLevels, int *lowestDomainListIndices, int *lowestDomainListIndex,
                              unsigned long *lowestDomainListKeys, unsigned long *sortedLowestDomainListKeys,
+                             int *lowestDomainListLevels,
                              float *tempArray, int *to_delete_cell, int *to_delete_leaf, int n, int m,
                              bool timing=false);
 
@@ -99,7 +107,7 @@ public:
 
     float lowestDomainListNodes(int *domainListIndices, int *domainListIndex, unsigned long *domainListKeys,
                                                 int *lowestDomainListIndices, int *lowestDomainListIndex,
-                                                unsigned long *lowestDomainListKeys,
+                                                unsigned long *lowestDomainListKeys, int *domainListLevels, int *lowestDomainListLevels,
                                                 float *x, float *y, float *z, float *mass, int *count, int *start,
                                                 int *child, int n, int m, int *procCounter, bool timing=false);
 
@@ -196,6 +204,33 @@ public:
                                    float *minY, float *maxY, float *minZ, float *maxZ, float sml,
                                    int numParticlesLocal, int numParticles, int numNodes, bool timing=false);
 
-};
+    /*float sphParticles2Send(int numParticlesLocal, int numParticles, int numNodes, float radius,
+                            float *x, float *y, float *z,
+                            float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ,
+                            SubDomainKeyTree *s, int *domainListIndex, unsigned long *domainListKeys,
+                            int *domainListIndices, int *domainListLevels,
+                            int *lowestDomainListIndices, int *lowestDomainListIndex,
+                            unsigned long *lowestDomainListKeys, int *lowestDomainListLevels, float sml, int maxLevel, int curveType,
+                            int *toSend, bool timing=false);*/
+
+    float sphParticles2Send(int numParticlesLocal, int numParticles, int numNodes, float radius,
+                            float *x, float *y, float *z,
+                            float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ,
+                            SubDomainKeyTree *s, int *domainListIndex, unsigned long *domainListKeys,
+                            int *domainListIndices, int *domainListLevels,
+                            int *lowestDomainListIndices, int *lowestDomainListIndex,
+                            unsigned long *lowestDomainListKeys, int *lowestDomainListLevels,
+                            float sml, int maxLevel, int curveType,
+                            int *toSend, int *sendCount, int *alreadyInserted,
+                            int insertOffset, bool timing=false);
+
+    float collectSendIndicesSPH(int numParticlesLocal, int numParticles, int numNodes, int *toSend,
+                                int *toSendCollected, int *sendCount, int insertOffset, SubDomainKeyTree *s,
+                                bool timing = false);
+
+    float collectSendEntriesSPH(float *entry, float *toSend, int *sendIndices, int *sendCount, int totalSendCount,
+                                int insertOffset, SubDomainKeyTree *s, bool timing = false);
+
+    };
 
 #endif //CUDA_NBODY_KERNELSWRAPPER_H

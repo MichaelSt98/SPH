@@ -1,6 +1,6 @@
 #include "../include/BarnesHut.cuh"
 
-void gpuAssert(cudaError_t code, const char *file, int line, bool abort)
+/*void gpuAssert(cudaError_t code, const char *file, int line, bool abort)
 {
     if (code != cudaSuccess)
     {
@@ -17,7 +17,7 @@ void CheckCudaCall(cudaError_t command, const char * commandName, const char * f
                 cudaGetErrorString(command), commandName, fileName, line);
         exit(0);
     }
-}
+}*/
 
 void BarnesHut::initRange() {
     // equidistant initialization of ranges
@@ -221,6 +221,9 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     gpuErrorcheck(cudaMemset(d_min_z, 0, sizeof(float)));
     gpuErrorcheck(cudaMemset(d_max_z, 0, sizeof(float)));
 
+    gpuErrorcheck(cudaMalloc((void**)&d_alreadyInserted, h_subDomainHandler->numProcesses*sizeof(int)));
+    gpuErrorcheck(cudaMemset(d_alreadyInserted, 0, h_subDomainHandler->numProcesses*sizeof(int)));
+
     gpuErrorcheck(cudaMalloc((void**)&d_mass, numNodes*sizeof(float)));
 
     gpuErrorcheck(cudaMalloc((void**)&d_domainListIndices, DOMAIN_LIST_SIZE*sizeof(int)));
@@ -248,6 +251,7 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
     gpuErrorcheck(cudaMalloc((void**)&d_sendIndicesTemp, numNodes*sizeof(int))); // numParticles or numNodes?
 
     gpuErrorcheck(cudaMalloc((void**)&d_lowestDomainListCounter, sizeof(int)));
+    gpuErrorcheck(cudaMalloc((void**)&d_lowestDomainListLevels, DOMAIN_LIST_SIZE*sizeof(int)));
     gpuErrorcheck(cudaMalloc((void**)&d_lowestDomainListIndices, DOMAIN_LIST_SIZE*sizeof(int)));
     gpuErrorcheck(cudaMalloc((void**)&d_lowestDomainListKeys, DOMAIN_LIST_SIZE*sizeof(unsigned long)));
     gpuErrorcheck(cudaMalloc((void**)&d_sortedLowestDomainListKeys, DOMAIN_LIST_SIZE*sizeof(unsigned long)));
@@ -278,6 +282,9 @@ BarnesHut::BarnesHut(const SimulationParameters p) {
 
     gpuErrorcheck(cudaMalloc((void**)&d_sphNumberOfInteractions, numParticles*sizeof(int)));
     //gpuErrorcheck(cudaMemset(d_sphInteractions, -1, MAX_NUM_INTERACTIONS*numParticles*sizeof(int)));
+
+    gpuErrorcheck(cudaMalloc((void**)&d_sphSendCount, h_subDomainHandler->numProcesses*sizeof(int)));
+    gpuErrorcheck(cudaMemset(d_sphSendCount, 0, h_subDomainHandler->numProcesses*sizeof(int)));
 
     gpuErrorcheck(cudaMalloc((void**)&d_subDomainHandler, sizeof(SubDomainKeyTree)));
     int size = 2 * sizeof(int) + 3 * sizeof(unsigned long);
@@ -467,7 +474,8 @@ void BarnesHut::update(int step)
     elapsedTimeKernel += KernelHandler.resetArraysParallel(d_domainListIndex, d_domainListKeys, d_domainListIndices,
                                                            d_domainListLevels, d_lowestDomainListIndices,
                                                            d_lowestDomainListIndex, d_lowestDomainListKeys,
-                                                           d_sortedLowestDomainListKeys, d_tempArray, d_to_delete_cell,
+                                                           d_sortedLowestDomainListKeys, d_lowestDomainListLevels,
+                                                           d_tempArray, d_to_delete_cell,
                                                            d_to_delete_leaf, numParticles, numNodes, timeKernels);
 
     time_resetArrays[step] = elapsedTimeKernel;
@@ -715,9 +723,9 @@ void BarnesHut::update(int step)
     //elapsedTimeKernel = KernelHandler.centreOfMass(d_x, d_y, d_z, d_mass, d_index, numParticles, timeKernels);
     compPseudoParticlesParallel();
 
-    KernelHandler.domainListInfo(d_x, d_y, d_z, d_mass, d_child, d_index, numParticlesLocal,
-                                 d_domainListIndices, d_domainListIndex, d_domainListLevels, d_lowestDomainListIndices,
-                                 d_lowestDomainListIndex, d_subDomainHandler, false);
+    //KernelHandler.domainListInfo(d_x, d_y, d_z, d_mass, d_child, d_index, numParticlesLocal,
+    //                             d_domainListIndices, d_domainListIndex, d_domainListLevels, d_lowestDomainListIndices,
+    //                             d_lowestDomainListIndex, d_subDomainHandler, false);
 
     time_centreOfMass[step] = elapsedTimeKernel;
     if (timeKernels) {
@@ -747,6 +755,67 @@ void BarnesHut::update(int step)
         Logger(TIME) << "\tCompute forces: " << elapsedTimeKernel << " ms";
     }
     /*computing forces**********************************************************************/
+
+    /*SPH***********************************************************************************/
+
+    // collect particles to be send (sphParticles2SendKernel)
+    /*KernelHandler.sphParticles2Send(numParticlesLocal, numParticles, numNodes, 1e-1,
+                                d_x, d_y, d_z, d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z,
+                                d_subDomainHandler, d_domainListIndex, d_domainListKeys,
+                                d_domainListIndices, d_domainListLevels,
+                                d_lowestDomainListIndices, d_lowestDomainListIndex,
+                                d_lowestDomainListKeys, d_lowestDomainListLevels, 1e-1, 21, parameters.curveType,
+                                d_sortArray, false);*/
+
+    int sphInsertOffset = 100000;
+    gpuErrorcheck(cudaMemset(d_sphSendCount, 0, h_subDomainHandler->numProcesses*sizeof(int)));
+
+    KernelHandler.sphParticles2Send(numParticlesLocal, numParticles, numNodes, 1e-1,
+                                    d_x, d_y, d_z, d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z,
+                                    d_subDomainHandler, d_domainListIndex, d_domainListKeys,
+                                    d_domainListIndices, d_domainListLevels,
+                                    d_lowestDomainListIndices, d_lowestDomainListIndex,
+                                    d_lowestDomainListKeys, d_lowestDomainListLevels, 1e-1, 21, parameters.curveType,
+                                    d_sortArray, d_sphSendCount, d_alreadyInserted, sphInsertOffset, false);
+
+    //gpuErrorcheck(cudaMemset(d_sphSendCount, 0, h_subDomainHandler->numProcesses*sizeof(int)));
+
+    //KernelHandler.collectSendIndicesSPH(numParticlesLocal, numParticles, numNodes, d_sortArray,
+    //                                    d_sortArrayOut, d_sphSendCount, 100000, d_subDomainHandler, false);
+
+    int totalSendCount = 0;
+
+    //KernelHandler.collectSendEntriesSPH(d_x, d_tempArray, d_sortArray, d_sphSendCount, totalSendCount, sphInsertOffset,
+    //                                    d_subDomainHandler, false);
+
+    // debug
+    int *particles2SendSPH;
+    particles2SendSPH = new int[h_subDomainHandler->numProcesses];
+    gpuErrorcheck(cudaMemcpy(particles2SendSPH, d_sphSendCount, h_subDomainHandler->numProcesses*sizeof(int), cudaMemcpyDeviceToHost));
+    for (int i=0; i<h_subDomainHandler->numProcesses; i++) {
+        Logger(INFO) << "particles2SendSPH[" << i << "] = " << particles2SendSPH[i];
+        totalSendCount += particles2SendSPH[i];
+    }
+    delete [] particles2SendSPH;
+    // end: debug
+
+    KernelHandler.collectSendEntriesSPH(d_x, d_tempArray, d_sortArray, d_sphSendCount, totalSendCount, sphInsertOffset,
+                                        d_subDomainHandler, false);
+
+    // send particles (using MPI)
+    // insert particles into local tree
+    // TODO: check if particles from gravity are deleted
+
+    // local neighbor search
+    /*KernelHandler.fixedRadiusNN(d_sphInteractions, d_sphNumberOfInteractions, d_x, d_y, d_z, d_child, d_min_x, d_max_x, d_min_y, d_max_y,
+                                 d_min_z, d_max_z, 5e-2, numParticlesLocal, numParticles, numNodes, false);
+
+    KernelHandler.sphDebug(d_sphInteractions, d_sphNumberOfInteractions, d_x, d_y, d_z, d_child, d_min_x, d_max_x, d_min_y, d_max_y,
+                                 d_min_z, d_max_z, 5e-2, numParticlesLocal, numParticles, numNodes, false);*/
+
+    // sph force(s)
+    // TODO: move updating particles to here!
+    /*sph***********************************************************************************/
 
     /*UPDATING******************************************************************************/
     elapsedTimeKernel = KernelHandler.update(d_x, d_y, d_z, d_vx, d_vy, d_vz, d_ax, d_ay, d_az, numParticlesLocal,
@@ -801,21 +870,6 @@ void BarnesHut::update(int step)
     Logger(INFO) << "-----------------------------------------------------------------------------------------";
 
     gatherParticles(true, true);
-
-    // collect particles to be send (sphParticles2SendKernel)
-    // send particles (using MPI)
-    // insert particles into local tree
-    // TODO: check if particles from gravity are deleted
-
-    // local neighbor search
-    KernelHandler.fixedRadiusNN(d_sphInteractions, d_sphNumberOfInteractions, d_x, d_y, d_z, d_child, d_min_x, d_max_x, d_min_y, d_max_y,
-                                 d_min_z, d_max_z, 5e-2, numParticlesLocal, numParticles, numNodes, false);
-
-    KernelHandler.sphDebug(d_sphInteractions, d_sphNumberOfInteractions, d_x, d_y, d_z, d_child, d_min_x, d_max_x, d_min_y, d_max_y,
-                                 d_min_z, d_max_z, 5e-2, numParticlesLocal, numParticles, numNodes, false);
-
-    // sph force(s)
-    // TODO: move updating particles to here!
 
     step++;
 }
@@ -1185,7 +1239,7 @@ void BarnesHut::compPseudoParticlesParallel() {
     KernelHandler.lowestDomainListNodes(d_domainListIndices, d_domainListIndex,
                                         d_domainListKeys,
                                         d_lowestDomainListIndices, d_lowestDomainListIndex,
-                                        d_lowestDomainListKeys,
+                                        d_lowestDomainListKeys, d_domainListLevels, d_lowestDomainListLevels,
                                         d_x, d_y, d_z, d_mass, d_count, d_start,
                                         d_child, numParticles, numNodes, d_procCounter, false);
 

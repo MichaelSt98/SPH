@@ -28,11 +28,11 @@
 #define TESTING 0
 #define CUDA_AWARE_MPI_TESTING 0
 
-#define SafeCudaCall(call) CheckCudaCall(call, #call, __FILE__, __LINE__)
+/*#define SafeCudaCall(call) CheckCudaCall(call, #call, __FILE__, __LINE__)
 #define gpuErrorcheck(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
 void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true);
-void CheckCudaCall(cudaError_t command, const char * commandName, const char * fileName, int line);
+void CheckCudaCall(cudaError_t command, const char * commandName, const char * fileName, int line);*/
 
 class BarnesHut {
 
@@ -128,6 +128,7 @@ private:
 
     int *d_lowestDomainListIndex;
     int *d_lowestDomainListIndices;
+    int *d_lowestDomainListLevels;
     unsigned long *d_lowestDomainListKeys;
     unsigned long *d_sortedLowestDomainListKeys;
     int *d_lowestDomainListCounter;
@@ -146,6 +147,8 @@ private:
     int *d_relevantDomainListIndices;
     int *d_sendIndices;
     int *d_sendIndicesTemp;
+
+    int *d_alreadyInserted;
 
     int *d_to_delete_cell;
     int *d_to_delete_leaf;
@@ -178,6 +181,7 @@ private:
 
     int *d_sphInteractions;
     int *d_sphNumberOfInteractions;
+    int *d_sphSendCount;
 
 
     //float *h_output;  //host output array for visualization
