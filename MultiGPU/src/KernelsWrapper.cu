@@ -4,6 +4,14 @@
 
 #include "../include/KernelsWrapper.cuh"
 
+ExecutionPolicy::ExecutionPolicy() : gridSize(256), blockSize(256), sharedMemBytes(0) {};
+
+ExecutionPolicy::ExecutionPolicy(dim3 _gridSize, dim3 _blockSize, size_t _sharedMemBytes)
+                : gridSize(_gridSize), blockSize(_blockSize), sharedMemBytes(_sharedMemBytes) {};
+
+ExecutionPolicy::ExecutionPolicy(dim3 _gridSize, dim3 _blockSize)
+                : gridSize(_gridSize), blockSize(_blockSize), sharedMemBytes(0) {};
+
 void gpuAssert(cudaError_t code, const char *file, int line, bool abort)
 {
     if (code != cudaSuccess)
@@ -51,7 +59,7 @@ float KernelsWrapper::resetArrays(int *mutex, float *x, float *y, float *z, floa
                                   int *procCounterTemp, bool timing) {
 
     float elapsedTime = 0.f;
-    if (timing) {
+    /*if (timing) {
         cudaEvent_t start_t, stop_t;
         cudaEventCreate(&start_t);
         cudaEventCreate(&stop_t);
@@ -70,7 +78,14 @@ float KernelsWrapper::resetArrays(int *mutex, float *x, float *y, float *z, floa
         resetArraysKernel<<< gridSize, blockSize >>>(mutex, x, y, z, mass, count, start, sorted, child, index,
                                                      minX, maxX, minY, maxY, minZ, maxZ, n, m, procCounter,
                                                      procCounterTemp);
-    }
+    }*/
+
+    elapsedTime = cudaLaunch(true, ExecutionPolicy(gridSize, blockSize), resetArraysKernel, mutex, x, y, z, mass, count, start, sorted, child, index,
+               minX, maxX, minY, maxY, minZ, maxZ, n, m, procCounter,
+               procCounterTemp);
+
+    printf("variadic elapsed time: %f\n", elapsedTime);
+
     return elapsedTime;
 }
 
@@ -1278,9 +1293,7 @@ float KernelsWrapper::sphParticles2Send(int numParticlesLocal, int numParticles,
 
 }
 
-float KernelsWrapper::collectSendIndicesSPH(int numParticlesLocal, int numParticles, int numNodes, int *toSend,
-                            int *toSendCollected, int *sendCount, int insertOffset, SubDomainKeyTree *s,
-                            bool timing) {
+float KernelsWrapper::collectSendIndicesSPH(int *toSend, int *toSendCollected, int count, bool timing) {
 
     float elapsedTime = 0.f;
     if (timing) {
@@ -1290,8 +1303,7 @@ float KernelsWrapper::collectSendIndicesSPH(int numParticlesLocal, int numPartic
         cudaEventRecord(start_t, 0);
 
         //Kernel call
-        collectSendIndicesSPHKernel<<<gridSize, blockSize>>>(numParticlesLocal, numParticles, numNodes, toSend,
-                                                             toSendCollected, sendCount, insertOffset, s);
+        collectSendIndicesSPHKernel<<<gridSize, blockSize>>>(toSend, toSendCollected, count);
 
         cudaEventRecord(stop_t, 0);
         cudaEventSynchronize(stop_t);
@@ -1301,8 +1313,7 @@ float KernelsWrapper::collectSendIndicesSPH(int numParticlesLocal, int numPartic
     }
     else {
         //Kernel call
-        collectSendIndicesSPHKernel<<<gridSize, blockSize>>>(numParticlesLocal, numParticles, numNodes, toSend,
-                                                             toSendCollected, sendCount, insertOffset, s);
+        collectSendIndicesSPHKernel<<<gridSize, blockSize>>>(toSend, toSendCollected, count);
     }
     return elapsedTime;
 

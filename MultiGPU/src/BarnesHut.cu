@@ -769,6 +769,7 @@ void BarnesHut::update(int step)
 
     int sphInsertOffset = 100000;
     gpuErrorcheck(cudaMemset(d_sphSendCount, 0, h_subDomainHandler->numProcesses*sizeof(int)));
+    gpuErrorcheck(cudaMemset(d_sortArray, -1, numParticles*sizeof(int)));
 
     KernelHandler.sphParticles2Send(numParticlesLocal, numParticles, numNodes, 1e-1,
                                     d_x, d_y, d_z, d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z,
@@ -788,7 +789,6 @@ void BarnesHut::update(int step)
     //KernelHandler.collectSendEntriesSPH(d_x, d_tempArray, d_sortArray, d_sphSendCount, totalSendCount, sphInsertOffset,
     //                                    d_subDomainHandler, false);
 
-    // debug
     int *particles2SendSPH;
     particles2SendSPH = new int[h_subDomainHandler->numProcesses];
     gpuErrorcheck(cudaMemcpy(particles2SendSPH, d_sphSendCount, h_subDomainHandler->numProcesses*sizeof(int), cudaMemcpyDeviceToHost));
@@ -796,11 +796,55 @@ void BarnesHut::update(int step)
         Logger(INFO) << "particles2SendSPH[" << i << "] = " << particles2SendSPH[i];
         totalSendCount += particles2SendSPH[i];
     }
-    delete [] particles2SendSPH;
-    // end: debug
 
-    KernelHandler.collectSendEntriesSPH(d_x, d_tempArray, d_sortArray, d_sphSendCount, totalSendCount, sphInsertOffset,
+
+    int particles2SendOffset = 0;
+    for (int i=0; i<h_subDomainHandler->numProcesses; i++) {
+        KernelHandler.collectSendIndicesSPH(&d_sortArray[i*sphInsertOffset], &d_sortArrayOut[particles2SendOffset], particles2SendSPH[i], false);
+        particles2SendOffset += particles2SendSPH[i];
+    }
+
+    int *particles2ReceiveSPH;
+    particles2ReceiveSPH = new int[h_subDomainHandler->numProcesses];
+    particles2ReceiveSPH[h_subDomainHandler->rank] = 0;
+
+    //MPI_Allreduce(particles2SendSPH, particles2ReceiveSPH, h_subDomainHandler->numProcesses, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+    int reqCounterSPH = 0;
+    MPI_Request reqMessageLengthsSPH[h_subDomainHandler->numProcesses-1];
+    MPI_Status statMessageLengthsSPH[h_subDomainHandler->numProcesses-1];
+
+    for (int proc=0; proc < h_subDomainHandler->numProcesses; proc++) {
+        if (proc != h_subDomainHandler->rank) {
+            MPI_Isend(&particles2SendSPH[proc], 1, MPI_INT, proc, 17, MPI_COMM_WORLD, &reqMessageLengthsSPH[reqCounterSPH]);
+            MPI_Recv(&particles2ReceiveSPH[proc], 1, MPI_INT, proc, 17, MPI_COMM_WORLD, &statMessageLengthsSPH[reqCounterSPH]);
+            reqCounterSPH++;
+        }
+    }
+
+    MPI_Waitall(h_subDomainHandler->numProcesses-1, reqMessageLengthsSPH, statMessageLengthsSPH);
+
+
+    for (int i=0; i<h_subDomainHandler->numProcesses; i++) {
+        Logger(INFO) << "particles2ReceiveSPH[" << i << "]: " << particles2ReceiveSPH[i];
+    }
+
+    // x-entry
+    KernelHandler.collectSendEntriesSPH(d_x, d_tempArray, d_sortArrayOut, d_sphSendCount, totalSendCount, sphInsertOffset,
                                         d_subDomainHandler, false);
+
+    // y-entry
+    // ...
+    // z-entry
+    // ..
+    // mass
+    // ...
+    // density, pressure, ...
+
+
+    delete [] particles2SendSPH;
+    delete [] particles2ReceiveSPH;
+
 
     // send particles (using MPI)
     // insert particles into local tree
@@ -1613,9 +1657,9 @@ float BarnesHut::parallelForce() {
 
     //Logger(INFO) << "duplicateCounterCounter = " << duplicateCounterCounter;
 
-    KernelHandler.treeInfo(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
-                           d_min_z, d_max_z, numParticlesLocal, numNodes, d_procCounter, d_subDomainHandler, d_sortArray,
-                           d_sortArrayOut);
+    //KernelHandler.treeInfo(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
+    //                       d_min_z, d_max_z, numParticlesLocal, numNodes, d_procCounter, d_subDomainHandler, d_sortArray,
+    //                       d_sortArrayOut);
 
     Logger(INFO) << "Starting inserting particles...";
     KernelHandler.insertReceivedParticles(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x,
@@ -1624,9 +1668,9 @@ float BarnesHut::parallelForce() {
                                         /*numParticlesLocal*/to_delete_leaf_1, numParticles, false);
 
 
-    KernelHandler.treeInfo(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
-                           d_min_z, d_max_z, numParticlesLocal, numNodes, d_procCounter, d_subDomainHandler, d_sortArray,
-                           d_sortArrayOut);
+    //KernelHandler.treeInfo(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
+    //                       d_min_z, d_max_z, numParticlesLocal, numNodes, d_procCounter, d_subDomainHandler, d_sortArray,
+    //                       d_sortArrayOut);
 
     int indexAfterInserting;
     gpuErrorcheck(cudaMemcpy(&indexAfterInserting, d_index, sizeof(int), cudaMemcpyDeviceToHost));

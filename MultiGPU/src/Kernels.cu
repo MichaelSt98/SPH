@@ -2753,7 +2753,7 @@ __global__ void sphParticles2SendKernel(int numParticlesLocal, int numParticles,
             printf("sphParticles2SendKernel: insertOffset = %i\n", insertOffset);
         }
 
-        toSend[bodyIndex + offset] = -1;
+        //toSend[bodyIndex + offset] = -1;
 
         for (int i=0; i<s->numProcesses; i++) {
             alreadyInserted[i] = 0;
@@ -2847,10 +2847,6 @@ __global__ void sphParticles2SendKernel(int numParticlesLocal, int numParticles,
                 }
 
                 d = dx*dx + dy*dy + dz*dz;
-                //if ((bodyIndex + offset) % 1000 == 0) {
-                //if (d < 1.f) {
-                //    printf("rank[%i] index = %i  d = %f (< %f ???) (%f, %f, %f)\n", s->rank, bodyIndex+offset, d, sml*sml, dx, dy, dz);
-                //}
 
                 if (d < (sml * sml)) {
 
@@ -2858,14 +2854,14 @@ __global__ void sphParticles2SendKernel(int numParticlesLocal, int numParticles,
                     if (insertIndex > 100000) {
                         printf("Attention!!! insertIndex: %i\n", insertIndex);
                     }
-                    insertIndexOffset = 0; //insertOffset * proc; //0;
+                    insertIndexOffset = insertOffset * proc; //0;
                     toSend[insertIndexOffset + insertIndex] = bodyIndex+offset;
                     //toSend[proc][insertIndex] = bodyIndex+offset;
-                    if (/*s->rank == 0 && (bodyIndex + offset)*/ insertIndex % 100 == 0) {
+                    /*if (insertIndex % 100 == 0) {
                         printf("[rank %i] Inserting %i into : %i + %i  toSend[%i] = %i\n", s->rank, bodyIndex+offset,
                                (insertOffset * proc), insertIndex, (insertOffset * proc) + insertIndex,
                                toSend[(insertOffset * proc) + insertIndex]);
-                    }
+                    }*/
                     alreadyInserted[proc] = 1;
                     //break;
                 }
@@ -2875,39 +2871,21 @@ __global__ void sphParticles2SendKernel(int numParticlesLocal, int numParticles,
             }
         }
 
-        __threadfence();
+        //__threadfence();
         offset += stride;
     }
 }
 
-__global__ void collectSendIndicesSPHKernel(int numParticlesLocal, int numParticles, int numNodes, int *toSend,
-                                            int *toSendCollected, int *sendCount, int insertOffset, SubDomainKeyTree *s) {
+__global__ void collectSendIndicesSPHKernel(int *toSend, int *toSendCollected, int count) {
 
     int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
     int stride = blockDim.x * gridDim.x;
     int offset = 0;
 
-    /*while ((bodyIndex + offset) < numParticlesLocal) {
-
-        //toSendCollected[bodyIndex + offset] = -1;
-
-        if (toSend[bodyIndex + offset] >= 0) {
-            //toSendCollected[toSend[bodyIndex + offset] * insertOffset + sendCount[toSendCollected[bodyIndex + offset]]] = bodyIndex + offset;
-            atomicAdd(&sendCount[toSend[bodyIndex + offset]], 1); //TODO: atomic add or just increment
-            //sendCount[toSend[bodyIndex + offset]] += 1;
-            if (s->rank == 0 && toSend[bodyIndex + offset] == 0) {
-                printf("WTF?\n");
-            }
-            //if ((bodyIndex + offset) % 1 == 0) {
-            //    printf("toSend[bodyIndex + offset] = %i\n", toSend[bodyIndex + offset]);
-            //}
-            //if (s->rank == 1 && toSend[bodyIndex + offset] == 0) {
-            //    printf("HERE!\n");
-            //}
-        }
-
+    while ((bodyIndex + offset) < count) {
+        toSendCollected[bodyIndex + offset] = toSend[bodyIndex + offset];
         offset += stride;
-    }*/
+    }
 }
 
 __global__ void collectSendEntriesSPHKernel(float *entry, float *toSend, int *sendIndices, int *sendCount,
@@ -2929,9 +2907,15 @@ __global__ void collectSendEntriesSPHKernel(float *entry, float *toSend, int *se
         printf("[rank %i] sendCount(%i, %i)\n", s->rank, sendCount[0], sendCount[1]);
     }
 
-    while ((bodyIndex + offset) < sendCount[proc]) {
+    bodyIndex += proc*insertOffset;
 
-        //if ((bodyIndex + offset) % 1000 == 0 /*|| (bodyIndex + offset) == sendCount[proc]*/) {
+    while ((bodyIndex + offset) < totalSendCount) {
+        toSend[bodyIndex + offset] = entry[sendIndices[bodyIndex + offset]];
+        offset += stride;
+    }
+
+    /*while ((bodyIndex + offset) < (proc*insertOffset + sendCount[proc])) {
+
         //if ((bodyIndex + offset) % 100 == 0) {
         //    printf("[rank %i] toSend[%i] = %i sendCount(%i, %i)\n", s->rank, (bodyIndex + offset),
         //           sendIndices[(bodyIndex + offset)], sendCount[0], sendCount[1]);
@@ -2943,49 +2927,11 @@ __global__ void collectSendEntriesSPHKernel(float *entry, float *toSend, int *se
         }
 
         offset += stride;
-    }
-
-    /*while ((bodyIndex + offset) < (sendCount[proc] + 1)) {
-
-        if ((bodyIndex + offset) == 0) {
-            printf("collectSendEntriesSPHKernel: insertOffset = %i\n", insertOffset);
-        }
-
-        //if ((bodyIndex + offset) < sendCount[proc]) {
-        //printf("[rank %i] sendCount[0] = %i  sendCount[1] = %i\n", s->rank, sendCount[0], sendCount[1]);
-        if ((bodyIndex + offset) % 1000 == 0 || (bodyIndex + offset) == sendCount[proc]) {
-            printf("[rank %i] toSend[%i + %i = %i] = %i\n", s->rank, proc*insertOffset,
-                   bodyIndex + offset, (proc*insertOffset) + (bodyIndex + offset),
-                   sendIndices[(proc*insertOffset) + (bodyIndex + offset)]);
-            //if (s->rank == 0) {
-            //    printf("[rank %i] toSend[(%i) + %i = %i] = %i\n", s->rank, proc*insertOffset,
-            //           bodyIndex + offset, (proc*insertOffset) + (bodyIndex + offset),
-            //           sendIndices[(bodyIndex + offset)]);
-            //}
-        }
-        offset += stride;
-
-        //if ((bodyIndex + offset) == (sendCount[proc] + 1)) {
-        //    printf("[rank %i] sendCount + 1: toSend[%i] = %i\n", s->rank, bodyIndex + offset,
-        //           sendIndices[proc * insertOffset + (bodyIndex + offset)]);
-        //}
     }*/
 
-    /*int accumulatedSendCount;
-
-    while ((bodyIndex + offset) < totalSendCount) {
-
-        accumulatedSendCount = 0;
-
-        for (int proc=0; proc<s->numProcesses; proc++) {
-            if ((bodyIndex + offset) > accumulatedSendCount && proc != s->rank) {
-                toSend[bodyIndex + offset] = entry[sendIndices[proc * insertOffset] + (bodyIndex + offset)];
-                break;
-            }
-            accumulatedSendCount += sendCount[proc];
-        }
-
+    /*while ((bodyIndex + offset) < totalSendCount) {
+        printf("[rank %i] toSend[%i] = %i sendCount(%i, %i)\n", s->rank, (bodyIndex + offset),
+                   sendIndices[(bodyIndex + offset)], sendCount[0], sendCount[1]);
         offset += stride;
     }*/
-    //while ((bodyIndex + offset) < (insertOffset * (s->numProcesses + 1))) { //}
 }

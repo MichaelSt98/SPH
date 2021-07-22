@@ -18,6 +18,53 @@
 void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true);
 void CheckCudaCall(cudaError_t command, const char * commandName, const char * fileName, int line);
 
+class ExecutionPolicy {
+
+public:
+    const dim3 gridSize;
+    const dim3 blockSize;
+    const size_t sharedMemBytes;
+
+    ExecutionPolicy();
+    ExecutionPolicy(dim3 _gridSize, dim3 _blockSize, size_t _sharedMemBytes);
+    ExecutionPolicy(dim3 _gridSize, dim3 _blockSize);
+};
+
+template <typename... Arguments>
+float cudaLaunch(bool timeKernel, const ExecutionPolicy &policy,
+                void (*f)(Arguments...),
+                Arguments... args)
+{
+    float elapsedTime = 0.f;
+    ExecutionPolicy p = policy;
+    //checkCuda(configureGrid(p, f));
+    if (timeKernel) {
+        cudaEvent_t start_t, stop_t;
+        cudaEventCreate(&start_t);
+        cudaEventCreate(&stop_t);
+        cudaEventRecord(start_t, 0);
+
+        f<<<p.gridSize, p.blockSize, p.sharedMemBytes>>>(args...);
+
+        cudaEventRecord(stop_t, 0);
+        cudaEventSynchronize(stop_t);
+        cudaEventElapsedTime(&elapsedTime, start_t, stop_t);
+        cudaEventDestroy(start_t);
+        cudaEventDestroy(stop_t);
+    }
+    else {
+        f<<<p.gridSize, p.blockSize, p.sharedMemBytes>>>(args...);
+    }
+
+    return elapsedTime;
+}
+
+template <typename... Arguments>
+float cudaLaunch(bool timeKernel, void(*f)(Arguments... args), Arguments... args)
+{
+    cudaLaunch(ExecutionPolicy(), f, args...);
+}
+
 
 class KernelsWrapper {
 
@@ -224,9 +271,7 @@ public:
                             int *toSend, int *sendCount, int *alreadyInserted,
                             int insertOffset, bool timing=false);
 
-    float collectSendIndicesSPH(int numParticlesLocal, int numParticles, int numNodes, int *toSend,
-                                int *toSendCollected, int *sendCount, int insertOffset, SubDomainKeyTree *s,
-                                bool timing = false);
+    float collectSendIndicesSPH(int *toSend, int *toSendCollected, int count, bool timing = false);
 
     float collectSendEntriesSPH(float *entry, float *toSend, int *sendIndices, int *sendCount, int totalSendCount,
                                 int insertOffset, SubDomainKeyTree *s, bool timing = false);

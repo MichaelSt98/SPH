@@ -269,8 +269,7 @@ __global__ void sphParticles2SendKernel(int numParticlesLocal, int numParticles,
                                         float sml, int maxLevel, int curveType,
                                         int *toSend, int *sendCount, int *alreadyInserted, int insertOffset);
 
-__global__ void collectSendIndicesSPHKernel(int numParticlesLocal, int numParticles, int numNodes, int *toSend,
-                                            int *toSendCollected, int *sendCount, int insertOffset, SubDomainKeyTree *s);
+__global__ void collectSendIndicesSPHKernel(int *toSend, int *toSendCollected, int count);
 
 __global__ void collectSendEntriesSPHKernel(float *entry, float *toSend, int *sendIndices, int *sendCount,
                                             int totalSendCount, int insertOffset, SubDomainKeyTree *s);
