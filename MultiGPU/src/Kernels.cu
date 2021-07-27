@@ -17,6 +17,14 @@ otherwise unused value (−2) to it using an atomic operation
 __device__ const float eps_squared = 0.0025;
 __device__ const float theta = 1.5; //0.5; //1.5; //0.5;
 
+__global__ void MyKernel(int *array, int arrayCount)
+{
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx < arrayCount)
+    {
+        array[idx] *= array[idx];
+    }
+}
 
 __global__ void resetArraysKernel(int *mutex, float *x, float *y, float *z, float *mass, int *count, int *start,
                                   int *sorted, int *child, int *index, float *minX, float *maxX,
@@ -287,12 +295,21 @@ __global__ void debugKernel(float *x, float *y, float *z, float *mass, int *coun
                                 float *minZ, float *maxZ, int n, int m, SubDomainKeyTree *s, int *procCounter,
                                 float *tempArray, int *sortArray, int *sortArrayOut) {
 
-    for (int i=0; i<8; i++) {
+    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
+    int stride = blockDim.x * gridDim.x;
+
+    int offset = n - 100;
+
+    while ((bodyIndex + offset) < n + 100) {
+        printf("x[%i > (%i) = %i] = (%f, %f, %f)\n", bodyIndex+offset, n, (bodyIndex + offset) > n, x[bodyIndex + offset], x[bodyIndex+offset], z[bodyIndex+offset]);
+        offset += stride;
+    }
+    /*for (int i=0; i<8; i++) {
         printf("child[%i] = %i\n", i, child[i]);
         for (int k=0; k<8; k++) {
             printf("\tchild[8*child[%i] + %i] = %i\n", i, k, child[8*child[i] + k]);
         }
-    }
+    }*/
 }
 
 // Kernel 2: hierarchically subdivides the root cells
@@ -2042,6 +2059,7 @@ __global__ void repairTreeKernel(float *x, float *y, float *z, float *vx, float 
     int stride = blockDim.x * gridDim.x;
     int offset = 0;
 
+    offset = to_delete_leaf[0];
     //delete inserted leaves
     while ((bodyIndex + offset) >= to_delete_leaf[0] && (bodyIndex + offset) < to_delete_leaf[1]) {
         for (int i=0; i<8; i++) {
@@ -2064,8 +2082,7 @@ __global__ void repairTreeKernel(float *x, float *y, float *z, float *vx, float 
         offset += stride;
     }
 
-    offset = 0;
-
+    offset = to_delete_cell[0]; //0;
     //delete inserted cells
     while ((bodyIndex + offset) >= to_delete_cell[0] && (bodyIndex + offset) < to_delete_cell[1]) {
         for (int i=0; i<8; i++) {
@@ -2528,202 +2545,6 @@ __global__ void sphDebugKernel(int *interactions, int *numberOfInteractions, flo
 
 }
 
-/*__global__ void sphParticles2SendKernel(int numParticlesLocal, int numParticles, int numNodes, float radius,
-                                        float *x, float *y, float *z,
-                                        float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ,
-                                        SubDomainKeyTree *s, int *domainListIndex, unsigned long *domainListKeys,
-                                        int *domainListIndices, int *domainListLevels,
-                                        int *lowestDomainListIndices, int *lowestDomainListIndex,
-                                        unsigned long *lowestDomainListKeys, float sml, int maxLevel, int curveType,
-                                        int *toSend) {
-
-    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
-    int stride = blockDim.x * gridDim.x;
-    int offset = 0;
-
-    int proc;
-    float dx, dy, dz, d;
-
-    while ((bodyIndex + offset) < numParticlesLocal) {
-
-        toSend[bodyIndex + offset] = -1;
-
-        // loop over (lowest?) domain list nodes
-        for (int i=0; i<*domainListIndex; i++) {
-
-            proc = key2proc(domainListKeys[i], s, curveType);
-            // check if (lowest?) domain list node belongs to other process
-            if (proc != s->rank) {
-                // check if particle is within radius of this node
-                dx = x[bodyIndex + offset] - x[domainListIndices[i]];
-                dy = y[bodyIndex + offset] - y[domainListIndices[i]];
-                dz = z[bodyIndex + offset] - z[domainListIndices[i]];
-
-                d = dx*dx + dy*dy + dz*dz;
-                //if ((bodyIndex + offset) % 1000 == 0) {
-                if (d < 1.f) {
-                    //printf("index = %i  d = %f (< %f ???) (%f, %f, %f)\n", bodyIndex+offset, d, sml*sml, dx, dy, dz);
-                }
-
-                if (d < (sml * sml)) {
-                    // if: (save to) send
-                    //printf("[rank %i] found particle that is possibly needed on other process: %i\n", s->rank, proc);
-                    toSend[bodyIndex + offset] = proc;
-                    //break;
-                }
-                else {
-                    // else: do nothing
-                }
-            }
-        }
-
-        // - using sortArray to write 0 (not send) and 1 (send) collecting it afterwards for sending?!
-        // - is it necessary to alter keys to get real domain borders for different processes
-
-        offset += stride;
-    }
-}*/
-
-/*__global__ void sphParticles2SendKernel(int numParticlesLocal, int numParticles, int numNodes, float radius,
-                                        float *x, float *y, float *z,
-                                        float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ,
-                                        SubDomainKeyTree *s, int *domainListIndex, unsigned long *domainListKeys,
-                                        int *domainListIndices, int *domainListLevels,
-                                        int *lowestDomainListIndices, int *lowestDomainListIndex,
-                                        unsigned long *lowestDomainListKeys, int *lowestDomainListLevels,
-                                        float sml, int maxLevel, int curveType,
-                                        int *toSend) {
-
-    int bodyIndex = threadIdx.x + blockIdx.x * blockDim.x;
-    int stride = blockDim.x * gridDim.x;
-    int offset = 0;
-
-    int proc, currentChild;
-    float dx, dy, dz, d;
-    float min_x, max_x, min_y, max_y, min_z, max_z;
-
-    while ((bodyIndex + offset) < numParticlesLocal) {
-
-
-
-        toSend[bodyIndex + offset] = -1;
-
-        // loop over (lowest?) domain list nodes
-        for (int i=0; i<*lowestDomainListIndex; i++) {
-
-            min_x = *minX;
-            max_x = *maxX;
-            min_y = *minY;
-            max_y = *maxY;
-            min_z = *minZ;
-            max_z = *maxZ;
-
-            proc = key2proc(lowestDomainListKeys[i], s, curveType);
-            // check if (lowest?) domain list node belongs to other process
-            if (proc != s->rank) {
-
-                int path[21];
-                for (int j=0; j<=lowestDomainListLevels[i]; j++) { //TODO: "<" or "<="
-                    path[j] = (int)(lowestDomainListKeys[i] >> (21 * 3 - 3 * (j + 1)) & (int) 7);
-                }
-
-                for (int j=0; j<=lowestDomainListLevels[i]; j++) {
-
-                    currentChild = path[j];
-
-                    if (currentChild % 2 != 0) {
-                        max_x = 0.5 * (min_x + max_x);
-                        currentChild -= 1;
-                    }
-                    else {
-                        min_x = 0.5 * (min_x + max_x);
-                    }
-                    if (currentChild % 2 == 0 && currentChild % 4 != 0) {
-                        max_y = 0.5 * (min_y + max_y);
-                        currentChild -= 2;
-                    }
-                    else {
-                        min_y = 0.5 * (min_y + max_y);
-                    }
-                    if (currentChild == 4) {
-                        max_z = 0.5 * (min_z + max_z);
-                        currentChild -= 4;
-                    }
-                    else {
-                        min_z = 0.5 * (min_z + max_z);
-                    }
-                }
-
-                // x-direction
-                if (x[bodyIndex + offset] < min_x) {
-                    // outside
-                    dx = x[bodyIndex + offset] - min_x;
-                }
-                else if (x[bodyIndex + offset] > max_x) {
-                    // outside
-                    dx = x[bodyIndex + offset] - max_x;
-                }
-                else {
-                    // in between: do nothing
-                    dx = 0;
-                }
-                // y-direction
-                if (y[bodyIndex + offset] < min_y) {
-                    // outside
-                    dy = y[bodyIndex + offset] - min_y;
-                }
-                else if (y[bodyIndex + offset] > max_y) {
-                    // outside
-                    dy = y[bodyIndex + offset] - max_y;
-                }
-                else {
-                    // in between: do nothing
-                    dy = 0;
-                }
-                // z-direction
-                if (z[bodyIndex + offset] < min_z) {
-                    // outside
-                    dz = z[bodyIndex + offset] - min_z;
-                }
-                else if (z[bodyIndex + offset] > max_z) {
-                    // outside
-                    dz = z[bodyIndex + offset] - max_z;
-                }
-                else {
-                    // in between: do nothing
-                    dz = 0;
-                }
-
-                d = dx*dx + dy*dy + dz*dz;
-                //if ((bodyIndex + offset) % 1000 == 0) {
-                //if (d < 1.f) {
-                //    printf("rank[%i] index = %i  d = %f (< %f ???) (%f, %f, %f)\n", s->rank, bodyIndex+offset, d, sml*sml, dx, dy, dz);
-                //}
-
-                if (d < (sml * sml)) {
-                    // if: (save to) send
-                    //printf("[rank %i] found particle that is possibly needed on other process: %i\n", s->rank, proc);
-
-
-                    toSend[bodyIndex + offset] = proc; //TODO: what if particle needs to be sent to several processes?
-                    break;
-                }
-                else {
-                    // else: do nothing
-                }
-
-
-            }
-        }
-
-        // - using sortArray to write 0 (not send) and 1 (send) collecting it afterwards for sending?!
-        // - is it necessary to alter keys to get real domain borders for different processes
-        //__threadfence();
-        offset += stride;
-    }
-}*/
-
-// TODO: ATTENTION: only works for 2 GPUs, since weird bug when using `insertOffset`
 __global__ void sphParticles2SendKernel(int numParticlesLocal, int numParticles, int numNodes, float radius,
                                         float *x, float *y, float *z,
                                         float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ,

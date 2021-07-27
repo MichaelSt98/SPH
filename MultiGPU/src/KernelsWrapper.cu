@@ -352,7 +352,7 @@ float KernelsWrapper::debug(float *x, float *y, float *z, float *mass, int *coun
         cudaEventCreate(&stop_t);
         cudaEventRecord(start_t, 0);
 
-        debugKernel<<< 1, 1/*gridSize, blockSize*/ >>>(x, y, z, mass, count, start, child, index,
+        debugKernel<<< /*1, 1*/gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
                                                    minX, maxX, minY, maxY, minZ, maxZ, n, m, s, procCounter,
                                                    tempArray, sortArray, sortArrayOut);
 
@@ -363,7 +363,7 @@ float KernelsWrapper::debug(float *x, float *y, float *z, float *mass, int *coun
         cudaEventDestroy(stop_t);
     }
     else {
-        debugKernel<<< 1, 1/*gridSize, blockSize*/ >>>(x, y, z, mass, count, start, child, index,
+        debugKernel<<< /*1, 1*/gridSize, blockSize >>>(x, y, z, mass, count, start, child, index,
                                                                minX, maxX, minY, maxY, minZ, maxZ, n, m, s, procCounter,
                                                                tempArray, sortArray, sortArrayOut);
     }
@@ -1253,7 +1253,8 @@ float KernelsWrapper::sphParticles2Send(int numParticlesLocal, int numParticles,
                                         SubDomainKeyTree *s, int *domainListIndex, unsigned long *domainListKeys,
                                         int *domainListIndices, int *domainListLevels,
                                         int *lowestDomainListIndices, int *lowestDomainListIndex,
-                                        unsigned long *lowestDomainListKeys, int *lowestDomainListLevels, float sml, int maxLevel, int curveType,
+                                        unsigned long *lowestDomainListKeys, int *lowestDomainListLevels, float sml, int maxLevel,
+                                        int curveType,
                                         int *toSend, int *sendCount, int *alreadyInserted, int insertOffset, bool timing) {
 
     float elapsedTime = 0.f;

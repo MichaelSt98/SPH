@@ -27,12 +27,15 @@
 
 #define TESTING 0
 #define CUDA_AWARE_MPI_TESTING 0
+#define SPH 1
 
 /*#define SafeCudaCall(call) CheckCudaCall(call, #call, __FILE__, __LINE__)
 #define gpuErrorcheck(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
 void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true);
 void CheckCudaCall(cudaError_t command, const char * commandName, const char * fileName, int line);*/
+
+void launchMyKernel(int *array, int arrayCount);
 
 class BarnesHut {
 
@@ -208,6 +211,7 @@ private:
     int sendParticlesEntry(int *sendLengths, int *receiveLengths, float *entry);
 
     void exchangeParticleEntry(int *sendLengths, int *receiveLengths, float *entry);
+    void exchangeParticleEntrySPH(int *sendLengths, int *receiveLengths, float *entry);
 
     void compPseudoParticlesParallel();
 

@@ -19,6 +19,53 @@ void CheckCudaCall(cudaError_t command, const char * commandName, const char * f
     }
 }*/
 
+void launchMyKernel(int *array, int arrayCount)
+{
+    int blockSize;   // The launch configurator returned block size
+    int minGridSize; // The minimum grid size needed to achieve the
+    // maximum occupancy for a full device launch
+    int gridSize;    // The actual grid size needed, based on input size
+    int dynamicSMemSize;
+    int blockSizeLimit;
+
+    //minGridSize: Returned minimum grid size needed to achieve the best potential occupancy
+    //blockSize: Returned block size
+    //func: Device function symbol
+    //dynamicSMemSize// Per-block dynamic shared memory usage intended, in bytes
+    //blockSizeLimit: The maximum block size func is designed to work with. 0 means no limit.
+    cudaOccupancyMaxPotentialBlockSize( &minGridSize, &blockSize, MyKernel,
+                                        /*dynamicSMemSize*/0, /*blockSizeLimit*/0 );
+
+    printf("minGridSize = %i, blockSize = %i\n", minGridSize, blockSize);
+
+    // Round up according to array size
+    gridSize = (arrayCount + blockSize - 1) / blockSize;
+
+    printf("MyKernel<<<%i, %i>>>\n", gridSize, blockSize);
+
+    MyKernel<<< gridSize, blockSize >>>(array, arrayCount);
+
+    cudaDeviceSynchronize();
+
+    // calculate theoretical occupancy
+    int maxActiveBlocks;
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor( &maxActiveBlocks,
+                                                   MyKernel, blockSize,
+                                                   0);
+
+    int device;
+    cudaDeviceProp props;
+    cudaGetDevice(&device);
+    cudaGetDeviceProperties(&props, device);
+
+    float occupancy = (maxActiveBlocks * blockSize / props.warpSize) /
+                      (float)(props.maxThreadsPerMultiProcessor /
+                              props.warpSize);
+
+    printf("Launched blocks of size %d. Theoretical occupancy: %f\n",
+           blockSize, occupancy);
+}
+
 void BarnesHut::initRange() {
     // equidistant initialization of ranges
     for (int i=0; i<h_subDomainHandler->numProcesses; i++) {
@@ -444,6 +491,10 @@ int BarnesHut::getNumParticlesLocal() {
 void BarnesHut::update(int step)
 {
 
+
+    //launchMyKernel(d_sortArray, 100000);
+    //exit(0);
+
     //int device;
     //gpuErrorcheck(cudaGetDevice(&device));
     //Logger(INFO) << "update() on device " << device << "...";
@@ -756,16 +807,8 @@ void BarnesHut::update(int step)
     }
     /*computing forces**********************************************************************/
 
+#if SPH
     /*SPH***********************************************************************************/
-
-    // collect particles to be send (sphParticles2SendKernel)
-    /*KernelHandler.sphParticles2Send(numParticlesLocal, numParticles, numNodes, 1e-1,
-                                d_x, d_y, d_z, d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z,
-                                d_subDomainHandler, d_domainListIndex, d_domainListKeys,
-                                d_domainListIndices, d_domainListLevels,
-                                d_lowestDomainListIndices, d_lowestDomainListIndex,
-                                d_lowestDomainListKeys, d_lowestDomainListLevels, 1e-1, 21, parameters.curveType,
-                                d_sortArray, false);*/
 
     int sphInsertOffset = 100000;
     gpuErrorcheck(cudaMemset(d_sphSendCount, 0, h_subDomainHandler->numProcesses*sizeof(int)));
@@ -824,31 +867,78 @@ void BarnesHut::update(int step)
 
     MPI_Waitall(h_subDomainHandler->numProcesses-1, reqMessageLengthsSPH, statMessageLengthsSPH);
 
-
+    int totalReceiveLength = 0;
     for (int i=0; i<h_subDomainHandler->numProcesses; i++) {
         Logger(INFO) << "particles2ReceiveSPH[" << i << "]: " << particles2ReceiveSPH[i];
+        totalReceiveLength += particles2ReceiveSPH[i];
     }
+
+    Logger(INFO) << "SPH: totalReceiveLength: " << totalReceiveLength;
+
+    int to_delete_leaf_0 = numParticlesLocal;
+    int to_delete_leaf_1 = numParticlesLocal + totalReceiveLength; //+ sendCount;
+    //cudaMemcpy(&d_to_delete_leaf[0], &h_procCounter[h_subDomainHandler->rank], sizeof(int), cudaMemcpyHostToDevice);
+    //cudaMemcpy(&d_to_delete_leaf[1], &to_delete_leaf_1, sizeof(int),
+    //         cudaMemcpyHostToDevice);
+    gpuErrorcheck(cudaMemcpy(&d_to_delete_leaf[0], &to_delete_leaf_0, sizeof(int), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(&d_to_delete_leaf[1], &to_delete_leaf_1, sizeof(int),
+                             cudaMemcpyHostToDevice));
+
+
+    //float copyArray(float *targetArray, float *sourceArray, int n, bool timing=false);
 
     // x-entry
     KernelHandler.collectSendEntriesSPH(d_x, d_tempArray, d_sortArrayOut, d_sphSendCount, totalSendCount, sphInsertOffset,
                                         d_subDomainHandler, false);
+    Logger(INFO) << "SPH: numParticlesLocal: " << numParticlesLocal;
+    exchangeParticleEntrySPH(particles2SendSPH, particles2ReceiveSPH, d_x);
+    //KernelHandler.debug(d_x, d_y, d_z, d_mass, d_count, d_start, d_child, d_index, d_min_x, d_max_x, d_min_y, d_max_y,
+    //                                    d_min_z, d_max_z, numParticlesLocal, numNodes, d_subDomainHandler, d_procCounter, d_tempArray,
+    //                                    d_sortArray, d_sortArrayOut);
 
     // y-entry
-    // ...
+    KernelHandler.collectSendEntriesSPH(d_y, d_tempArray, d_sortArrayOut, d_sphSendCount, totalSendCount, sphInsertOffset,
+                                        d_subDomainHandler, false);
+    exchangeParticleEntry(particles2SendSPH, particles2ReceiveSPH, d_y);
+
     // z-entry
-    // ..
+    KernelHandler.collectSendEntriesSPH(d_z, d_tempArray, d_sortArrayOut, d_sphSendCount, totalSendCount, sphInsertOffset,
+                                        d_subDomainHandler, false);
+    exchangeParticleEntry(particles2SendSPH, particles2ReceiveSPH, d_z);
+
     // mass
-    // ...
+    KernelHandler.collectSendEntriesSPH(d_mass, d_tempArray, d_sortArrayOut, d_sphSendCount, totalSendCount, sphInsertOffset,
+                                        d_subDomainHandler, false);
+    exchangeParticleEntry(particles2SendSPH, particles2ReceiveSPH, d_mass);
+
     // density, pressure, ...
 
 
     delete [] particles2SendSPH;
     delete [] particles2ReceiveSPH;
 
+    gpuErrorcheck(cudaMemset(d_sortArray, -1, numParticles*sizeof(int)));
+    gpuErrorcheck(cudaMemset(d_sortArrayOut, -1, numParticles*sizeof(int)));
+    gpuErrorcheck(cudaMemset(d_tempArray, 0.f, 2*numParticles*sizeof(float)));
 
-    // send particles (using MPI)
-    // insert particles into local tree
-    // TODO: check if particles from gravity are deleted
+
+    int indexBeforeInserting;
+    gpuErrorcheck(cudaMemcpy(&indexBeforeInserting, d_index, sizeof(int), cudaMemcpyDeviceToHost));
+
+    // insert particles into local tree!
+
+    int indexAfterInserting;
+    gpuErrorcheck(cudaMemcpy(&indexAfterInserting, d_index, sizeof(int), cudaMemcpyDeviceToHost));
+
+    gpuErrorcheck(cudaMemcpy(&d_to_delete_cell[0], &indexBeforeInserting, sizeof(int), cudaMemcpyHostToDevice));
+    gpuErrorcheck(cudaMemcpy(&d_to_delete_cell[1], &indexAfterInserting, sizeof(int), cudaMemcpyHostToDevice));
+
+    //KernelHandler.centreOfMassReceivedParticles(d_x, d_y, d_z, d_mass, &d_to_delete_cell[0], &d_to_delete_cell[1],
+    //                                            numParticlesLocal, false);
+
+
+    Logger(INFO) << "SPH: indexBeforeInserting: " << indexBeforeInserting;
+    Logger(INFO) << "SPH: indexAfterInserting: " << indexAfterInserting;
 
     // local neighbor search
     /*KernelHandler.fixedRadiusNN(d_sphInteractions, d_sphNumberOfInteractions, d_x, d_y, d_z, d_child, d_min_x, d_max_x, d_min_y, d_max_y,
@@ -858,8 +948,13 @@ void BarnesHut::update(int step)
                                  d_min_z, d_max_z, 5e-2, numParticlesLocal, numParticles, numNodes, false);*/
 
     // sph force(s)
-    // TODO: move updating particles to here!
+
+    KernelHandler.repairTree(d_x, d_y, d_z, d_vx, d_vy, d_vz, d_ax, d_ay, d_az, d_mass, d_count, d_start, d_child,
+                             d_index, d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z, d_to_delete_cell, d_to_delete_leaf,
+                             d_domainListIndices, numParticles, numNodes, false);
+
     /*sph***********************************************************************************/
+#endif
 
     /*UPDATING******************************************************************************/
     elapsedTimeKernel = KernelHandler.update(d_x, d_y, d_z, d_vx, d_vy, d_vz, d_ax, d_ay, d_az, numParticlesLocal,
@@ -1424,13 +1519,50 @@ void BarnesHut::exchangeParticleEntry(int *sendLengths, int *receiveLengths, flo
     int reqCounter = 0;
     int receiveOffset = 0;
 
-    //Logger(INFO) << "exchangeParticleEntry: numParticlesLocal = " << numParticlesLocal;
+    Logger(INFO) << "exchangeParticleEntry: numParticlesLocal = " << numParticlesLocal;
 
     for (int proc=0; proc < h_subDomainHandler->numProcesses; proc++) {
         if (proc != h_subDomainHandler->rank) {
             //Logger(INFO) << "sendLengths[" << proc << "] = " << sendLengths[proc];
             MPI_Isend(d_tempArray, sendLengths[proc], MPI_FLOAT, proc, 17, MPI_COMM_WORLD, &reqParticles[reqCounter]);
             MPI_Recv(&entry[numParticlesLocal] + receiveOffset, receiveLengths[proc], MPI_FLOAT,
+                     proc, 17, MPI_COMM_WORLD, &statParticles[reqCounter]);
+            receiveOffset += receiveLengths[proc];
+            reqCounter++;
+        }
+    }
+
+    MPI_Waitall(h_subDomainHandler->numProcesses-1, reqParticles, statParticles);
+
+    //int offset = 0;
+    //for (int i=0; i < h_subDomainHandler->rank; i++) {
+    //    offset += h_procCounter[h_subDomainHandler->rank];
+    //}
+
+}
+
+void BarnesHut::exchangeParticleEntrySPH(int *sendLengths, int *receiveLengths, float *entry) {
+
+    MPI_Request reqParticles[h_subDomainHandler->numProcesses - 1];
+    MPI_Status statParticles[h_subDomainHandler->numProcesses - 1];
+
+    int reqCounter = 0;
+    int receiveOffset = 0;
+
+    Logger(INFO) << "sph: exchangeParticleEntry: numParticlesLocal = " << numParticlesLocal;
+
+    /*for (int proc=0; proc < h_subDomainHandler->numProcesses; proc++) {
+        if (proc != h_subDomainHandler->rank) {
+            Logger(INFO) << "sph: sendLengths[" << proc << "] = " << sendLengths[proc];
+            Logger(INFO) << "sph: receiveLengths[" << proc << "] = " << receiveLengths[proc];
+        }
+    }*/
+
+    for (int proc=0; proc < h_subDomainHandler->numProcesses; proc++) {
+        if (proc != h_subDomainHandler->rank) {
+            //Logger(INFO) << "sendLengths[" << proc << "] = " << sendLengths[proc];
+            MPI_Isend(d_tempArray, sendLengths[proc], MPI_FLOAT, proc, 17, MPI_COMM_WORLD, &reqParticles[reqCounter]);
+            MPI_Recv(/*&d_tempArray_2[numParticlesLocal] + receiveOffset*/&entry[numParticlesLocal] + receiveOffset, receiveLengths[proc], MPI_FLOAT,
                      proc, 17, MPI_COMM_WORLD, &statParticles[reqCounter]);
             receiveOffset += receiveLengths[proc];
             reqCounter++;
@@ -1719,8 +1851,11 @@ float BarnesHut::parallelForce() {
     //TODO: necessary? Tree is build for every iteration
     KernelHandler.repairTree(d_x, d_y, d_z, d_vx, d_vy, d_vz, d_ax, d_ay, d_az, d_mass, d_count, d_start, d_child,
                              d_index, d_min_x, d_max_x, d_min_y, d_max_y, d_min_z, d_max_z, d_to_delete_cell, d_to_delete_leaf,
-                             d_domainListIndices, numParticles, numNodes, false);
+                             d_domainListIndices, numParticlesLocal, numNodes, false);
 
+
+    //gpuErrorcheck(cudaMemcpy(d_index, &indexBeforeInserting, sizeof(int), cudaMemcpyHostToDevice));
+    //gpuErrorcheck(cudaMemcpy(&d_to_delete_leaf[0], &numParticlesLocal, sizeof(int), cudaMemcpyHostToDevice));
 
     return elapsedTime;
 }

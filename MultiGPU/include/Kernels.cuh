@@ -38,6 +38,9 @@ __device__ const unsigned char HilbertTable[12][8] = { {0,7,3,4,1,6,2,5}, {4,3,7
                                                        {2,3,5,4,1,0,6,7}, {4,5,3,2,7,6,0,1}, {0,3,1,2,7,4,6,5},
                                                        {2,1,3,0,5,6,4,7}, {4,7,5,6,3,0,2,1}, {6,5,7,4,1,2,0,3} };
 
+
+__global__ void MyKernel(int *array, int arrayCount);
+
 /**
  * Reset the arrays/pointers.
  */
@@ -248,16 +251,6 @@ __global__ void fixedRadiusNNKernel(int *interactions, int *numberOfInteractions
 __global__ void sphDebugKernel(int *interactions, int *numberOfInteractions, float *x, float *y, float *z, int *child, float *minX, float *maxX,
                                float *minY, float *maxY, float *minZ, float *maxZ, float sml,
                                int numParticlesLocal, int numParticles, int numNodes);
-
-/*__global__ void sphParticles2SendKernel(int numParticlesLocal, int numParticles, int numNodes, float radius,
-                                        float *x, float *y, float *z,
-                                        float *minX, float *maxX, float *minY, float *maxY, float *minZ, float *maxZ,
-                                        SubDomainKeyTree *s, int *domainListIndex, unsigned long *domainListKeys,
-                                        int *domainListIndices, int *domainListLevels,
-                                        int *lowestDomainListIndices, int *lowestDomainListIndex,
-                                        unsigned long *lowestDomainListKeys, int *lowestDomainListLevels,
-                                        float sml, int maxLevel, int curveType,
-                                        int *toSend);*/
 
 __global__ void sphParticles2SendKernel(int numParticlesLocal, int numParticles, int numNodes, float radius,
                                         float *x, float *y, float *z,
